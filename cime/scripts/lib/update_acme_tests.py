@@ -48,8 +48,9 @@ _TEST_SUITES = {
                              "ERP.f45_g37_rx1.A",
                              "SMS_D_Ln9.f19_g16_rx1.A",
                              "DAE.f19_f19.A",
-                             "SMS.T42_T42.S")
-#                             "PRE.f19_f19.ADESP")
+                             "PET_P32.f19_f19.A",
+                             "SMS.T42_T42.S",
+                             "PRE.f45_g37_rx1.ADESP")
                             ),
 
     #
@@ -109,7 +110,7 @@ _TEST_SUITES = {
                          "ERS.f09_g16_g.MPASLISIA",
                          "SMS.T62_oQU120_ais20.MPAS_LISIO_TEST",
                          "SMS.f09_g16_a.IGCLM45_MLI",
-                        ("ERS_Ld5_P8x4.ne4_ne4.FC5AV1C-L", "cam-cosplite"),
+                        ("SMS_Ln5.ne4_ne4.FC5AV1C-L", "cam-cosplite_nhtfrq5"),
                          "SMS_D_Ln5.ne16_ne16.FC5AV1F",
                          "SMS_D_Ln5.ne16_ne16.FC5AV1C",
                          "SMS_D_Ln5.ne16_ne16.FC5AV1C-01",
@@ -138,10 +139,10 @@ _TEST_SUITES = {
                            ("PET_Ln9.ne30_ne30.FC5", "cam-outfrq9s"),
                            "PET.f19_g16.X",
                            "PET.f45_g37_rx1.A",
-                           "PET_Ln9.ne30_oEC.A_WCYCL2000",
-                           "ERP_Ld3.ne30_oEC.A_WCYCL2000",
+                           "PET_Ln9.ne30_oECv3_ICG.A_WCYCL1850S",
+                           "ERP_Ld3.ne30_oECv3_ICG.A_WCYCL1850S",
                            "SEQ_IOP.f19_g16.X",
-                           "SMS.ne30_oEC.A_WCYCL2000",
+                           "SMS.ne30_oECv3_ICG.A_WCYCL1850S",
                            "SMS.ne16_ne16.FC5AQUAP",
                            "SMS_D_Ld3.ne16_ne16.FC5",
                            "SMS.f09_g16_a.MPASLIALB",

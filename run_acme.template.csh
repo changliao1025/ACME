@@ -210,7 +210,7 @@ set cpl_hist_num   = 1
 #===========================================
 # VERSION OF THIS SCRIPT
 #===========================================
-set script_ver = 3.0.6
+set script_ver = 3.0.7
 
 #===========================================
 # DEFINE ALIASES
@@ -523,7 +523,6 @@ endsw
 # Note:  we also want to change the group id for the files.
 #        But this can only be done once the run_root_dir has been created,
 #        so it is done later.
-# TODO:  CIME does this to some extent; determine how much and
 umask 022
 
 set cime_dir = ${code_root_dir}/${tag_name}/cime
@@ -549,7 +548,7 @@ endif
 # DETERMINE THE OPTIONS FOR CREATE_NEWCASE
 #=============================================================
 
-set configure_options = "--case ${case_scripts_dir} --compset ${compset} --res ${resolution} --pecount ${std_proc_configuration} --handle-preexisting-dirs u"
+set configure_options = "--case ${case_name} --compset ${compset} --script-root ${case_scripts_dir} --res ${resolution} --pecount ${std_proc_configuration} --handle-preexisting-dirs u"
 
 if ( `lowercase $machine` != default ) then
   set configure_options = "${configure_options} --mach ${machine}"
@@ -586,20 +585,14 @@ acme_newline
 acme_print '-------- Starting create_newcase --------'
 acme_newline
 
-acme_print $create_newcase_exe $configure_options
-$create_newcase_exe $configure_options
+acme_print ${create_newcase_exe} ${configure_options}
+${create_newcase_exe} ${configure_options}
 
 cd ${case_scripts_dir}
 
 acme_newline
 acme_print '-------- Finished create_newcase --------'
 acme_newline
-
-#================================================
-# CORRECT THE CASE NAME FOR THE OUTPUT FILES
-#================================================
-
-${xmlchange_exe} --id CASE --val ${case_name}
 
 #================================================
 # UPDATE VARIABLES WHICH REQUIRE A CASE TO BE SET
@@ -988,32 +981,6 @@ else
 endif
 
 #============================================
-# QUEUE OPTIONS
-#============================================
-# Edit the default queue and batch job lengths.
-
-#HINT: To change queue after run submitted, the following works on most machines:
-#      qalter -lwalltime=00:29:00 <run_descriptor>
-#      qalter -W queue=debug <run_descriptor>
-
-#NOTE: we are currently not modifying the archiving scripts to run in debug queue when $debug_queue=true
-#      under the assumption that if you're debugging you shouldn't be archiving.
-
-#NOTE: there was 1 space btwn MSUB or PBS and the commands before cime and there are 2 spaces
-#      in post-cime versions. This is fixed by " \( \)*" in the lines below. The "*" here means
-#      "match zero or more of the expression before". The expression before is a single whitespace.
-#      The "\(" and "\)" bit indicate to sed that the whitespace in between is the expression we
-#      care about. The space before "\(" makes sure there is at least one whitespace after #MSUB.
-#      Taken all together, this stuff matches lines of the form #MSUB<one or more whitespaces>-<stuff>.
-
-set machine = `lowercase $machine`
-
-### Only specially authorized people can use the special_acme qos on Cori or Edison. Don't uncomment unless you're one.
-### if ( `lowercase $debug_queue` == false && ( $machine == core || $machine == edison ) ) then
-###   sed -i /"#SBATCH \( \)*--account"/a"#SBATCH  --qos=special_acme"  ${case_run_exe}
-### endif
-
-#============================================
 # BATCH JOB OPTIONS
 #============================================
 
@@ -1058,6 +1025,35 @@ else
     acme_print 'WARNING: This script does not have batch directives for $machine='$machine
     acme_print '         Assuming default ACME values.'
 endif
+
+#============================================
+# QUEUE OPTIONS
+#============================================
+# Edit the default queue and batch job lengths.
+
+#HINT: To change queue after run submitted, the following works on most machines:
+#      qalter -lwalltime=00:29:00 <run_descriptor>
+#      qalter -W queue=debug <run_descriptor>
+
+#NOTE: we are currently not modifying the archiving scripts to run in debug queue when $debug_queue=true
+#      under the assumption that if you're debugging you shouldn't be archiving.
+
+#NOTE: there was 1 space btwn MSUB or PBS and the commands before cime and there are 2 spaces
+#      in post-cime versions. This is fixed by " \( \)*" in the lines below. The "*" here means
+#      "match zero or more of the expression before". The expression before is a single whitespace.
+#      The "\(" and "\)" bit indicate to sed that the whitespace in between is the expression we
+#      care about. The space before "\(" makes sure there is at least one whitespace after #MSUB.
+#      Taken all together, this stuff matches lines of the form #MSUB<one or more whitespaces>-<stuff>.
+
+set machine = `lowercase $machine`
+
+### Only specially authorized people can use the special_acme qos on Cori or Edison. Don't uncomment unless you're one.
+#if ( `lowercase $debug_queue` == false && $machine == edison ) then
+#  set update_run = ${case_run_exe}.updated
+#  awk '/--account/{print; print "#SBATCH --qos=special_acme";next}1' ${case_run_exe} > ${update_run}
+#  mv ${update_run} ${case_run_exe}
+#  unset update_run
+#endif
 
 #============================================
 # SETUP SHORT AND LONG TERM ARCHIVING
@@ -1357,6 +1353,9 @@ acme_newline
 #                        use the new CIME option --handle-preexisting-dirs to avoid this potential error
 #                        Fix the usage of xmlchange for the customknl configuration
 #                        Set walltime to default to get more time on Edison (MD)
+# 3.0.7    2017-05-22    Fix for the new CIME 5.3; use the --script-root option instead of PJC's "hack"
+#                        Note that this breaks compatibility with older versions of CIME
+#                        Also add a fix to reenable using the special acme qos queue on Edison (MD)
 # NOTE:  PJC = Philip Cameron-Smith,  PMC = Peter Caldwell, CG = Chris Golaz, MD = Michael Deakin
 
 ### ---------- Desired features still to be implemented ------------
