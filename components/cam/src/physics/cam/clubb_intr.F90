@@ -792,6 +792,12 @@ end subroutine clubb_init_cnst
     call addfld ('CLUBB_STEND_EFIX',  horiz_only,'A', 'k/s','Dry static energy tendency due to energy fixer')
     call addfld ('CLUBB_STENDR_EFIX',(/ 'lev' /),'A', '1',  'Dry static energy tendency due to energy fixer, relative to CLUBBs tendency')
 
+    call addfld ( 'CLUBB_KE_BEF', horiz_only, 'A','J/kg', 'kinentic energy before CLUBB call')
+    call addfld ( 'CLUBB_KE_DIF', horiz_only, 'A','J/kg', 'kinentic energy difference due to CLUBB call')
+    call addfld ( 'CLUBB_TE_BEF', horiz_only, 'A','J/kg', 'total energy before CLUBB call')
+    call addfld ( 'CLUBB_TE_DIF', horiz_only, 'A','J/kg', 'total energy difference due to CLUBB call')
+    call addfld ( 'CLUBB_SE_DIF', horiz_only, 'A','J/kg', 'static energy difference due to CLUBB call')
+
     !  Initialize statistics, below are dummy variables
     dum1 = 300._r8
     dum2 = 1200._r8
@@ -1270,6 +1276,8 @@ end subroutine clubb_init_cnst
    real(r8) :: te_xpd          (pcols)        ! "expected" value of the column-integrated total energy 
                                               ! after all substeps of CLUBB integration
                                               ! (= value before integration + increment caused by sources/sinks)
+   real(r8) :: te_diff         (pcols)        ! 
+   real(r8) :: se_diff         (pcols)        ! 
    real(r8) :: ke_diff         (pcols)        ! 
    real(r8) :: ke_diff_rel     (pcols)        ! 
    real(r8) :: te_rel_err      (pcols)        ! relative error of column-integrated total energy
@@ -2176,6 +2184,9 @@ end subroutine clubb_init_cnst
       te_rel_err2(i)= ( te_a2(i)- te_xpd(i) )/te_b(i)
       dsdt_efixer(i) = - se_dis*gravit/hdtime
 
+      se_diff(i)     = te_a2(i) - te_xpd(i)
+      te_diff(i)     = te_a (i) - te_xpd(i)
+
       ! Apply this fixer throughout the column evenly, but only at layers where
       ! CLUBB is active.
       do k=clubbtop,pver
@@ -2294,6 +2305,11 @@ end subroutine clubb_init_cnst
    call outfld(  'RTM_CNSV_ERR',  z_rtm_cnsv_err, pcols, lchnk)
    call outfld( 'THLM_CNSV_ERR', z_thlm_cnsv_err, pcols, lchnk)
 
+   call outfld( 'CLUBB_KE_BEF', ke_b,    pcols, lchnk)
+   call outfld( 'CLUBB_KE_DIF', ke_diff, pcols, lchnk)
+   call outfld( 'CLUBB_TE_BEF', te_b,    pcols, lchnk)
+   call outfld( 'CLUBB_TE_DIF', te_diff, pcols, lchnk)
+   call outfld( 'CLUBB_SE_DIF', se_diff, pcols, lchnk)
    !-------------------------------------------------------------------------
    ! Energy fixer related diagnostics
 
