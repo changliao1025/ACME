@@ -6047,7 +6047,7 @@
   <grid name="a%ne120np4_l%ne120np4_oi%oRRS18to6.+r%r0125.+">
     <mach name="mira">
       <pes compset="CAM5.+CLM45.+MPASCICE.+MPASO.+MOSART.+SGLC.+SWAV" pesize="S">
-        <comment>ne120 all-active compset, -pecount S</comment>
+        <comment>ne120 all-active compset, 1024 nodes</comment>
         <ntasks>
           <ntasks_atm>2700</ntasks_atm>
           <ntasks_lnd>300</ntasks_lnd>
@@ -6080,7 +6080,7 @@
         </rootpe>
       </pes>
       <pes compset="CAM5.+CLM45.+MPASCICE.+MPASO.+MOSART.+SGLC.+SWAV" pesize="M">
-        <comment>ne120 all-active compset, -pecount M</comment>
+        <comment>ne120 all-active compset, 2048 nodes</comment>
         <ntasks>
           <ntasks_atm>5400</ntasks_atm>
           <ntasks_lnd>2608</ntasks_lnd>
@@ -6107,6 +6107,39 @@
           <rootpe_rof>2792</rootpe_rof>
           <rootpe_ice>0</rootpe_ice>
           <rootpe_ocn>5400</rootpe_ocn>
+          <rootpe_glc>0</rootpe_glc>
+          <rootpe_wav>0</rootpe_wav>
+          <rootpe_cpl>0</rootpe_cpl>
+        </rootpe>
+      </pes>
+      <pes compset="CAM5.+CLM45.+MPASCICE.+MPASO.+MOSART.+SGLC.+SWAV" pesize="L">
+        <comment>ne120 all-active compset, 4096 nodes</comment>
+        <ntasks>
+          <ntasks_atm>14400</ntasks_atm>
+          <ntasks_lnd>2400</ntasks_lnd>
+          <ntasks_rof>2400</ntasks_rof>
+          <ntasks_ice>12000</ntasks_ice>
+          <ntasks_ocn>1984</ntasks_ocn>
+          <ntasks_glc>1</ntasks_glc>
+          <ntasks_wav>1</ntasks_wav>
+          <ntasks_cpl>12000</ntasks_cpl>
+        </ntasks>
+        <nthrds>
+          <nthrds_atm>12</nthrds_atm>
+          <nthrds_lnd>16</nthrds_lnd>
+          <nthrds_rof>16</nthrds_rof>
+          <nthrds_ice>16</nthrds_ice>
+          <nthrds_ocn>8</nthrds_ocn>
+          <nthrds_glc>1</nthrds_glc>
+          <nthrds_wav>1</nthrds_wav>
+          <nthrds_cpl>16</nthrds_cpl>
+        </nthrds>
+        <rootpe>
+          <rootpe_atm>0</rootpe_atm>
+          <rootpe_lnd>12000</rootpe_lnd>
+          <rootpe_rof>12000</rootpe_rof>
+          <rootpe_ice>0</rootpe_ice>
+          <rootpe_ocn>14400</rootpe_ocn>
           <rootpe_glc>0</rootpe_glc>
           <rootpe_wav>0</rootpe_wav>
           <rootpe_cpl>0</rootpe_cpl>
