@@ -48,6 +48,7 @@ public :: &
 
 integer,public, allocatable :: cosp_cnt(:)       ! counter for cosp
 integer,public              :: cosp_cnt_init = 0 !initial value for cosp counter
+integer,public              :: max_chnks_in_blk= huge(1) !initial value for cosp counter
 
 ! Private module data
 integer :: qrs_idx      = 0 
@@ -82,6 +83,8 @@ logical :: dohirs = .false. ! diagnostic  brightness temperatures at the top of 
                             ! atmosphere for 7 TOVS/HIRS channels (2,4,6,8,10,11,12) and 4 TOVS/MSU 
                             ! channels (1,2,3,4).
 integer :: ihirsfq = 1      ! frequency (timesteps) of brightness temperature calcs
+
+integer, allocatable :: clm_rand_seed(:,:,:)
 
 real(r8) :: dt_avg=0.0_r8  ! time step to use for the shr_orb_cosz calculation, if use_rad_dt_cosz set to true !BSINGH - Added for solar insolation calc.
 !===============================================================================
@@ -302,7 +305,7 @@ end function radiation_nextsw_cday
 
 !================================================================================================
 
-  subroutine radiation_init()
+  subroutine radiation_init(clm_id, phys_state)
 !-----------------------------------------------------------------------
 !
 ! Initialize the radiation parameterization, add fields to the history buffer
@@ -325,7 +328,9 @@ end function radiation_nextsw_cday
     use rrtmg_state,   only: rrtmg_state_init
     use time_manager,   only: get_step_size
 
-
+    type(physics_state), optional, intent(in):: phys_state(begchunk:endchunk)
+    integer, optional, intent(in) :: clm_id(pcols, max_chnks_in_blk)
+    
     integer :: icall, nmodes
     logical :: active_calls(0:N_DIAG)
     integer :: nstep                       ! current timestep number
@@ -337,8 +342,23 @@ end function radiation_nextsw_cday
     integer :: history_budget_histfile_num ! output history file number for budget fields
     integer :: err
 
-    integer :: dtime
+    integer :: dtime, id, lchnk, ncol, icol, ichnk
     !-----------------------------------------------------------------------
+
+    allocate(clm_rand_seed(pcols,max_chnks_in_blk,4))
+
+    do ichnk = 1, max_chnks_in_blk
+       lchnk = begchunk + (ichnk -1)
+       ncol = phys_state(lchnk)%ncol
+       do icol = 1, ncol
+          id = clm_id(icol,ichnk)
+          clm_rand_seed(icol,ichnk,1) = id
+          clm_rand_seed(icol,ichnk,2) = id + 1
+          clm_rand_seed(icol,ichnk,3) = id + 2
+          clm_rand_seed(icol,ichnk,4) = id + 3
+       enddo
+    enddo
+
     
     call rrtmg_state_init()
 
@@ -594,7 +614,7 @@ end function radiation_nextsw_cday
        cam_out, cam_in, &
        landfrac,landm,icefrac,snowh, &
        fsns,    fsnt, flns,    flnt,  &
-       fsds, net_flx, rnglw, rngsw) !BSINGH - Added rngsw and rnglw
+       fsds, net_flx, ilchnk)
 
     !----------------------------------------------------------------------- 
     ! 
@@ -648,17 +668,12 @@ end function radiation_nextsw_cday
     use rrtmg_state, only: rrtmg_state_create, rrtmg_state_update, rrtmg_state_destroy, rrtmg_state_t, num_rrtmg_levs
     use orbit,            only: zenith
 
-    !BSINGH -  for pergrow
-    use parrrtm, only: nsubcollw => ngptlw !BSINGH
-    use parrrsw, only: nsubcolsw => ngptsw !BSINGH
-
     ! Arguments
+    integer,  intent(in),optional    :: ilchnk
     real(r8), intent(in)    :: landfrac(pcols)  ! land fraction
     real(r8), intent(in)    :: landm(pcols)     ! land fraction ramp
     real(r8), intent(in)    :: icefrac(pcols)   ! land fraction
     real(r8), intent(in)    :: snowh(pcols)     ! Snow depth (liquid water equivalent)
-    real(r8), intent(in)    :: rnglw(nsubcollw,pcols,pver)     ! rand # for long wave
-    real(r8), intent(in)    :: rngsw(nsubcolsw,pcols,pver)     ! rand # for short wave
     real(r8), intent(inout) :: fsns(pcols)      ! Surface solar absorbed flux
     real(r8), intent(inout) :: fsnt(pcols)      ! Net column abs solar flux at model top
     real(r8), intent(inout) :: flns(pcols)      ! Srf longwave cooling (up-down) flux
@@ -1064,7 +1079,7 @@ end function radiation_nextsw_cday
                        fsntoac,      fsnirt,       fsnrtc,       fsnirtsq,     fsns,           &
                        fsnsc,        fsdsc,        fsds,         cam_out%sols, cam_out%soll,   &
                        cam_out%solsd,cam_out%solld,fns,          fcns,                         &
-                       Nday,         Nnite,        IdxDay,       IdxNite,      rngsw,          &!BSINGH - added rngsw
+                       Nday,         Nnite,        IdxDay,       IdxNite,      clm_rand_seed (:,ilchnk,:),  &!BSINGH - added rngsw
                        su,           sd,                                                       &
                        E_cld_tau=c_cld_tau, E_cld_tau_w=c_cld_tau_w, E_cld_tau_w_g=c_cld_tau_w_g, E_cld_tau_w_f=c_cld_tau_w_f, &
                        old_convert = .false.)
@@ -1174,7 +1189,8 @@ end function radiation_nextsw_cday
                        state%pmid,   aer_lw_abs,   cldfprime,       c_cld_lw_abs,                &
                        qrl,          qrlc,                                                       &
                        flns,         flnt,         flnsc,           flntc,        cam_out%flwds, &
-                       flut,         flutc,        fnl,             fcnl,         fldsc, rnglw,  & !BSINGH - added rnglw
+                       flut,         flutc,        fnl,             fcnl,         fldsc,         &
+                       clm_rand_seed(:,ilchnk,:),                                                 & !BSINGH - added rnglw
                        lu,           ld)
                   call t_stopf ('rad_rrtmg_lw')
 
