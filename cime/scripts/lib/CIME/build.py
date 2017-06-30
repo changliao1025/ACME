@@ -461,6 +461,7 @@ def _case_build_impl(caseroot, case, sharedlib_only, model_only):
     os.environ["CLM_USE_PETSC"]        = stringify_bool(clm_use_petsc)
     os.environ["CISM_USE_TRILINOS"]    = stringify_bool(cism_use_trilinos)
     os.environ["MPASLI_USE_ALBANY"]    = stringify_bool(mpasli_use_albany)
+    os.environ["USE_MOAB"]             = stringify_bool(use_moab)
 
     if get_model() == "acme" and mach == "titan" and compiler == "pgiacc":
         case.set_value("CAM_TARGET", "preqx_acc")

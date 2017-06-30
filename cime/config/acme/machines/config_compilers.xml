@@ -615,6 +615,8 @@ for mct, etc.
   <MPIFC> ftn </MPIFC>
   <MPICC> cc </MPICC>
   <MPICXX> CC </MPICXX>
+  <CXX_LIBS>-lstdc++</CXX_LIBS>
+  <MOAB_PATH>$(MOAB_DIR)</MOAB_PATH>
   <SFC> ifort </SFC>
   <SCC> icc </SCC>
   <SCXX> icpc </SCXX>
@@ -716,9 +718,12 @@ for mct, etc.
   <ADD_FFLAGS DEBUG="FALSE"> -O2  </ADD_FFLAGS>
   <ADD_CFLAGS DEBUG="FALSE"> -O2  </ADD_CFLAGS>
   <CONFIG_ARGS> --host=Linux </CONFIG_ARGS>
+  <NETCDF_PATH>$(NETCDFROOT)</NETCDF_PATH>
+  <PNETCDF_PATH>$(PNETCDFROOT)</PNETCDF_PATH>
   <ADD_SLIBS> $(shell $(NETCDF_PATH)/bin/nf-config --flibs) -lblas -llapack</ADD_SLIBS>
   <CXX_LIBS>-lstdc++ -lmpi_cxx</CXX_LIBS>
   <ALBANY_PATH>/projects/install/rhel6-x86_64/ACME/AlbanyTrilinos/Albany/build/install</ALBANY_PATH>
+  <MOAB_PATH>$(MOAB_DIR)</MOAB_PATH>
 </compiler>
 
 <compiler COMPILER="intel" MACH="skybridge">
@@ -1136,6 +1141,8 @@ for mct, etc.
 <compiler COMPILER="intel" MACH="anvil">
   <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas -mkl </ADD_SLIBS>
   <ADD_SLIBS> -Wl,-rpath -Wl,$(NETCDF_PATH)/lib </ADD_SLIBS>
+  <MOAB_PATH>$(MOAB_DIR)</MOAB_PATH>
+  <CXX_LIBS>-lstdc++</CXX_LIBS>
   <PIO_FILESYSTEM_HINTS>gpfs </PIO_FILESYSTEM_HINTS>
 </compiler>
 
