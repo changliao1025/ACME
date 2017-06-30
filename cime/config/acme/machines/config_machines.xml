@@ -677,6 +677,7 @@
     </module_system>
     <environment_variables>
       <env name="NETCDF_PATH">$SHELL{dirname $(dirname $(which ncdump))}</env>
+      <env name="MOAB_DIR">/home/climate1/MOAB/gcc62</env>
     </environment_variables>
     <environment_variables mpilib="mpi-serial">
       <!-- We currently don't have a soft env for serial hdf5 -->

@@ -112,6 +112,10 @@ contains
     use prim_implicit_mod,  only : prim_implicit_init
 #endif
 
+#if HAVE_MOAB
+    use moabmesh_mod, only : create_moab_mesh
+#endif
+
     implicit none
 
     type (element_t),   pointer     :: elem(:)
@@ -456,6 +460,11 @@ contains
     ith=0
     nets=1
     nete=nelemd
+
+#if HAVE_MOAB
+    call create_moab_mesh(par, elem, nets, nete)
+#endif
+
     ! set the actual number of threads which will be used in the horizontal
     nThreadsHoriz = nthreads
 #ifndef CAM
