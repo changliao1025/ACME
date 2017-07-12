@@ -1,0 +1,32 @@
+To play with the test
+
+1. Edit ener_config.cpp.in to change the following if you 
+   do not want the default values
+
+   * chunk indices: BCHNK ECHNK
+   * time step index: STEP
+   * number of grid columns: PCOLS
+   * number of vertical layers: PLEV
+
+   Note: make sure you have ASCII files 
+   nstep_xxxxx_chunk_yyyyy_state.asc
+   in the directory specified in params.txt 
+   These ASCII files are expected to contain the model 
+   state variables needed for the test.
+
+   *  xxxxx is the time step index (e.g., 00005);
+   *  The number of vertical layers should match PLEV;
+   *  The number of grid columns (in the .asc file) 
+      should be no fewer than PCOLS.
+
+
+2. Compile the test by typing
+    $> make
+
+3. Run the test by typing
+    $> ./exe params.txt
+
+4. If anything has been modified in ener_config.cpp.in, do
+    $> make clean
+   first before compiling again.
+

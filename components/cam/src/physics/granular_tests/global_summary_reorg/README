@@ -1,0 +1,12 @@
+This is the unit test for the global_summary module.
+
+To execute the test, use the following 4 commands
+
+  ./link_src_files.bash
+  
+  cd src
+  make
+  ./exe params.txt
+
+then check the file unitTest_1 to see whether it ends with 
+the message "all results conformed with expected values"

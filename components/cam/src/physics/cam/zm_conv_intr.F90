@@ -118,6 +118,8 @@ subroutine zm_conv_init(pref_edge)
   use phys_control,   only: phys_deepconv_pbl, phys_getopts, cam_physpkg_is
   use physics_buffer, only: pbuf_get_index
   use rad_constituents, only: rad_cnst_get_info 
+  use global_summary,   only: add_smry_field, ABS_GREATER_EQ
+  use physconst,        only: rounding_tol, water_cnsv_tol
 
   implicit none
 
@@ -133,6 +135,11 @@ subroutine zm_conv_init(pref_edge)
   integer :: history_budget_histfile_num ! output history file number for budget fields
   integer :: nmodes 
 
+! 
+! Register fields for global summary 
+!
+  call add_smry_field('TOT_ENERGY_REL_ERR','convect_deep(check_energy_chng)','-',ABS_GREATER_EQ,rounding_tol)
+  call add_smry_field('TOT_WATER_REL_ERR', 'convect_deep(check_energy_chng)','-',ABS_GREATER_EQ,water_cnsv_tol)
 ! 
 ! Register fields with the output buffer
 !

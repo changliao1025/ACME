@@ -7034,4 +7034,16 @@ Used when turbulent mountain stress calc is turned on. See <varname>do_tms</varn
 set by build-namelist for WACCM, T31
 </entry>
 
+<entry id="rounding_tol" type="real" category="physconst"
+       group="physconst_nl" valid_values="" >
+Rounding error tolerance used in checking relative energy conservation error etc.
+Default: 1E-14
+</entry>
+
+<entry id="water_cnsv_tol" type="real" category="physconst"
+       group="physconst_nl" valid_values="" >
+Tolerance of relative error in total energy conservation.
+Default: 1E-10
+</entry>
+
 </namelist_definition>
