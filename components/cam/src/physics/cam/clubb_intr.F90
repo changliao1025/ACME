@@ -130,6 +130,12 @@ module clubb_intr
   logical            :: clubb_energy_no_ke         ! when true, exclude kinentic energy in the calculation of total energy 
   logical            :: clubb_energy_liquid        ! when true, define total energy as  liquid water static energy 
 
+  integer,parameter :: fh_none = 0
+  integer,parameter :: fh_expl = 1
+  integer,parameter :: fh_midp = 2
+  integer,parameter :: fh_impl = 3
+  integer           :: clubb_frictional_heating
+
   integer            :: history_budget_histfile_num
   integer            :: edsclr_dim       ! Number of scalars to transport in CLUBB
   integer            :: offset
@@ -379,7 +385,8 @@ end subroutine clubb_init_cnst
                                 clubb_do_adv, clubb_do_deep, clubb_timestep, clubb_stabcorrect, &
                                 clubb_rnevap_effic, clubb_liq_deep, clubb_liq_sh, clubb_ice_deep, &
                                 clubb_ice_sh, clubb_tk1, clubb_tk2, relvar_fix, &
-                                clubb_const_exner, clubb_energy_no_ke, clubb_energy_liquid
+                                clubb_const_exner, clubb_energy_no_ke, clubb_energy_liquid, &
+                                clubb_frictional_heating
 
     !----- Begin Code -----
 
@@ -397,6 +404,8 @@ end subroutine clubb_init_cnst
     clubb_const_exner   = .false.   ! .false. means calculate exner function using pressure
     clubb_energy_no_ke  = .false.   ! .false. means include kinetic energy in energy checker and fixer
     clubb_energy_liquid = .false.   ! .false. means using ACME's definition of total energy (frozen) 
+
+    clubb_frictional_heating = fh_none  ! default is no frictional heating
 
     !  Read namelist to determine if CLUBB history should be called
     if (masterproc) then
@@ -445,6 +454,7 @@ end subroutine clubb_init_cnst
       call mpibcast(clubb_tk1,                1,   mpir8,   0, mpicom)
       call mpibcast(clubb_tk2,                1,   mpir8,   0, mpicom)
       call mpibcast(relvar_fix,               1,   mpilog,  0, mpicom)
+      call mpibcast(clubb_frictional_heating, 1,   mpiint,  0, mpicom)
 #endif
 
     !  Overwrite defaults if they are true
@@ -797,6 +807,7 @@ end subroutine clubb_init_cnst
     call addfld ( 'CLUBB_TE_BEF', horiz_only, 'A','J/kg', 'total energy before CLUBB call')
     call addfld ( 'CLUBB_TE_DIF', horiz_only, 'A','J/kg', 'total energy difference due to CLUBB call')
     call addfld ( 'CLUBB_SE_DIF', horiz_only, 'A','J/kg', 'static energy difference due to CLUBB call')
+    call addfld ( 'CLUBB_FH'    , horiz_only, 'A','J/kg', 'frictional heating')
 
     !  Initialize statistics, below are dummy variables
     dum1 = 300._r8
@@ -1137,7 +1148,7 @@ end subroutine clubb_init_cnst
    real(r8) :: varmu2
 
    ! Variables below are needed to compute energy integrals for conservation
-   real(r8) :: ke_a(pcols), ke_b(pcols), te_a(pcols), te_b(pcols)
+   real(r8) :: ke_a(pcols), ke_b(pcols), te_a(pcols), te_b(pcols), fh_a(pcols)
    real(r8) :: wv_a(pcols), wv_b(pcols), wl_b(pcols), wl_a(pcols)
    real(r8) :: se_dis, se_a(pcols), se_b(pcols), clubb_s(pver)
 
@@ -1270,6 +1281,10 @@ end subroutine clubb_init_cnst
    real(r8)  qitend(pcols,pver)
    real(r8)  initend(pcols,pver)
    logical            :: lqice(pcnst)
+
+   real(r8) :: fh    (pcols,pver) ! 
+   real(r8) :: zdudt (pver)       ! 
+   real(r8) :: zdvdt (pver)       ! 
 
    ! energy conservation diagnostics for output
 
@@ -2108,6 +2123,28 @@ end subroutine clubb_init_cnst
           enddo
 
       enddo 
+
+      ! Frictional heating: 
+      ! the term = - u*(du/dt) - v*(dv/dt) will be added to the 
+      ! static energy tendency.
+
+      zdudt(:) = (um(i,:pver)-state1%u(i,:))/hdtime
+      zdvdt(:) = (vm(i,:pver)-state1%v(i,:))/hdtime
+
+      select case (clubb_frictional_heating)
+      case (fh_none)
+        fh(i,:) = 0._r8
+
+      case (fh_expl)
+        fh(i,:) = - state1%u(i,:)*zdudt(:) - state1%v(i,:)*zdvdt(:)
+
+      case (fh_impl)
+        fh(i,:) = - um(i,:)*zdudt(:) - vm(i,:)*zdvdt(:)
+
+      case (fh_midp)
+        fh(i,:) = - 0.5_r8*(state1%u(i,:)+um(i,:)) *zdudt(:) \
+                  - 0.5_r8*(state1%v(i,:)+vm(i,:)) *zdvdt(:)
+      end select
      
       !  Fill up arrays needed for McICA.  Note we do not want the ghost point,
       !   thus why the second loop is needed.
@@ -2140,12 +2177,14 @@ end subroutine clubb_init_cnst
          wl_a(i) = wl_a(i) + (rcm(i,k))*state1%pdel(i,k)/gravit
       enddo
 
-      ! Computer vertically integrated kinentic energy
+      ! Computer vertically integrated kinentic energy and frictional heating
       ke_a(i) = 0._r8
+      fh_a(i) = 0._r8
 
       if (.not.clubb_energy_no_ke) then
          do k=1,pver
             ke_a(i) = ke_a(i) + 0.5_r8*(um(i,k)**2+vm(i,k)**2)*state1%pdel(i,k)/gravit
+            fh_a(i) = fh_a(i) + fh(i,k)*state1%pdel(i,k)/gravit *hdtime
          enddo
 
          ke_diff(i)     = ke_a(i) - ke_b(i)
@@ -2157,17 +2196,17 @@ end subroutine clubb_init_cnst
      
       ! Based on these integrals, compute the total energy before and after CLUBB call
       if (clubb_energy_liquid) then
-         te_a2(i)= se_a(i) + ke_b(i) - latvap*wl_a(i)   ! diagnostic only
-         te_a(i) = se_a(i) + ke_a(i) - latvap*wl_a(i)
+         te_a2(i)= se_a(i) + ke_b(i) - latvap*wl_a(i)           ! diagnostic only
+         te_a(i) = se_a(i) + ke_a(i) - latvap*wl_a(i) + fh_a(i)
          te_b(i) = se_b(i) + ke_b(i) - latvap*wl_b(i)
       else
-         te_a2(i)= se_a(i) + ke_b(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i)   ! diagnostic only
-         te_a(i) = se_a(i) + ke_a(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i)
+         te_a2(i)= se_a(i) + ke_b(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i)           ! diagnostic only
+         te_a(i) = se_a(i) + ke_a(i) + (latvap+latice)*wv_a(i)+latice*wl_a(i) + fh_a(i)
          te_b(i) = se_b(i) + ke_b(i) + (latvap+latice)*wv_b(i)+latice*wl_b(i)
       endif
      
       ! Take into account the surface fluxes of heat and moisture
-      te_xpd(i) = te_b(i)+(cam_in%shf(i)+(cam_in%cflx(i,1))*(latvap+latice))*hdtime
+      te_xpd(i) = te_b(i)+(cam_in%shf(i)+(cam_in%cflx(i,1))*(latvap+latice))*hdtime 
 
       ! Limit the energy fixer to find highest layer where CLUBB is active
       ! Find first level where wp2 is higher than lowest threshold
@@ -2201,8 +2240,8 @@ end subroutine clubb_init_cnst
          ptend_loc%v(i,k)   = (vm(i,k)-state1%v(i,k))/hdtime             ! north-south wind
          ptend_loc%q(i,k,ixq) = (rtm(i,k)-rcm(i,k)-state1%q(i,k,ixq))/hdtime ! water vapor
          ptend_loc%q(i,k,ixcldliq) = (rcm(i,k)-state1%q(i,k,ixcldliq))/hdtime   ! Tendency of liquid water
-         ptend_loc%s(i,k)   = (clubb_s(k)-state1%s(i,k))/hdtime          ! Tendency of static energy
-
+         ptend_loc%s(i,k)   = (clubb_s(k)-state1%s(i,k))/hdtime + fh(i,k)         ! Tendency of static energy
+        
          !save for output
          if (abs(ptend_loc%s(i,k)).gt.zsmall) then
             dsdt_efixer_rel(i,k) = dsdt_efixer(i)/ptend_loc%s(i,k)
@@ -2310,6 +2349,7 @@ end subroutine clubb_init_cnst
    call outfld( 'CLUBB_TE_BEF', te_b,    pcols, lchnk)
    call outfld( 'CLUBB_TE_DIF', te_diff, pcols, lchnk)
    call outfld( 'CLUBB_SE_DIF', se_diff, pcols, lchnk)
+   call outfld( 'CLUBB_FH',     fh_a,    pcols, lchnk)
    !-------------------------------------------------------------------------
    ! Energy fixer related diagnostics
 

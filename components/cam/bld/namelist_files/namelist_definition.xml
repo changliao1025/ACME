@@ -2919,6 +2919,10 @@ Default: FALSE
 <entry id="clubb_energy_liquid" type="logical" category="pblrad"
        group="clubbpbl_diff_nl" valid_values="" >
 Default: FALSE
+
+<entry id="clubb_frictional_heating" type="integer" category="pblrad"
+       group="clubbpbl_diff_nl" valid_values="" >
+Default: 0 (no frictional heating)
 </entry>
 
 <!-- Clubb tunable parameters -->
