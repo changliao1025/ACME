@@ -52,6 +52,9 @@ module global_summary
   integer,public,parameter :: ABS_GREATER_EQ   =  2
 
   !----------------
+  integer, parameter :: INT_UNDEF = -999
+  real(r8),parameter :: FLT_UNDEF = -999._r8
+  !----------------
   ! Data structure 
 
   type tp_stat_smry
@@ -67,11 +70,11 @@ module global_summary
     ! extreme value and its location
 
     real(r8) :: extreme_val
-    real(r8) :: extreme_lat  = -999._r8
-    real(r8) :: extreme_lon  = -999._r8
-    integer  :: extreme_chnk = -999
-    integer  :: extreme_col  = -999
-    integer  :: extreme_lev  = -999
+    real(r8) :: extreme_lat  = FLT_UNDEF
+    real(r8) :: extreme_lon  = FLT_UNDEF
+    integer  :: extreme_chnk = INT_UNDEF
+    integer  :: extreme_col  = INT_UNDEF
+    integer  :: extreme_lev  = INT_UNDEF
 
   end type tp_stat_smry
   !-------------------------------
@@ -264,7 +267,7 @@ contains
 
     integer :: ii
 
-    fldidx = -999
+    fldidx = INT_UNDEF
     do ii = 1,current_number_of_smry_fields 
        if (trim(global_smry_1d(ii)%field_name) == trim(fldname) .and. &
            trim(global_smry_1d(ii)%procedure_name) == trim(procname)  ) then
@@ -304,7 +307,7 @@ contains
     !-------------------------------------------------------------------------
     call get_smry_field_idx( fldname, procname, ifld )
 
-    if (ifld.eq.-999) then
+    if (ifld.eq.INT_UNDEF) then
        return
     end if
 
@@ -395,7 +398,7 @@ contains
     !-------------------------------------------------------------------------
     call get_smry_field_idx( fldname, procname, ifld )
 
-    if (ifld.eq.-999) then
+    if (ifld.eq.INT_UNDEF) then
        return
     end if
   
