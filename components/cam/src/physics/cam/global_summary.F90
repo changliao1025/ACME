@@ -283,14 +283,17 @@ contains
   !   in a single chunk of CAM's physics grid. The particular incarnation of the 
   !   subroutine deals with fields that have multiple vertical levels. 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_m_lev_real( ncol, nlev, array, lat, lon, chunk_smry )
+  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array, lat, lon, chunk_smry, ifld )
 
+    character(len=*),  intent(in)    :: fldname
+    character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol              ! number of columns packed in array
     integer,           intent(in)    :: nlev              ! number of vertical levels
     real(r8),          intent(in)    :: array(ncol,nlev)  ! array of values to be checked
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
-    type(tp_stat_smry),intent(inout) :: chunk_smry
+    type(tp_stat_smry),intent(inout) :: chunk_smry(:)
+    integer,           intent(out)   :: ifld
 
     ! Local variables
 
@@ -299,59 +302,66 @@ contains
     character(len=shortchar) :: cmpr_type_char
   
     !-------------------------------------------------------------------------
+    call get_smry_field_idx( fldname, procname, ifld )
+
+    if (ifld.eq.-999) then
+       return
+    end if
+
+    !-------------------------------------------------------------------------
     ! Calculate the total number of grid cells with value exceeding threshold
     ! and identify location of the extremem value.
   
     iflag(:,:) = 0
 
-    SELECT CASE (chunk_smry%cmpr_type)
+    SELECT CASE (chunk_smry(ifld)%cmpr_type)
     CASE (GREATER_EQ)
       cmpr_type_char = '>='
-      where( array .ge. chunk_smry%threshold ) iflag = 1
+      where( array .ge. chunk_smry(ifld)%threshold ) iflag = 1
       idx = maxloc( array )
 
     CASE (SMALLER_THAN)
       cmpr_type_char = '<'
-      where( array .lt. chunk_smry%threshold ) iflag = 1
+      where( array .lt. chunk_smry(ifld)%threshold ) iflag = 1
       idx = minloc( array )
 
     CASE (ABS_GREATER_EQ)
       cmpr_type_char = 'ABS >='
-      WHERE( abs(array) .ge. chunk_smry%threshold ) iflag = 1
+      WHERE( abs(array) .ge. chunk_smry(ifld)%threshold ) iflag = 1
       idx = maxloc( abs(array) )
 
     CASE (ABS_SMALLER_THAN)
       cmpr_type_char = 'ABS < '
-      WHERE( abs(array) .lt. chunk_smry%threshold ) iflag = 1
+      WHERE( abs(array) .lt. chunk_smry(ifld)%threshold ) iflag = 1
       idx = minloc( abs(array) )
 
     END SELECT
 
     ! Total number of values exceeding threshold
 
-    chunk_smry%count = sum( iflag )
+    chunk_smry(ifld)%count = sum( iflag )
 
     ! The extreme value
 
-    chunk_smry%extreme_val  = array(idx(1),idx(2))
-    chunk_smry%extreme_col  =       idx(1)
-    chunk_smry%extreme_lev  =       idx(2)
-    chunk_smry%extreme_lat  =   lat(idx(1))
-    chunk_smry%extreme_lon  =   lon(idx(1))
+    chunk_smry(ifld)%extreme_val  = array(idx(1),idx(2))
+    chunk_smry(ifld)%extreme_col  =       idx(1)
+    chunk_smry(ifld)%extreme_lev  =       idx(2)
+    chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
+    chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
   
     ! Send message to log file
   
     if (l_print_always) then
        write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4))') &
-         'chunk_smry: ',trim(chunk_smry%procedure_name), &
-         trim(chunk_smry%field_name),'('//trim(chunk_smry%field_unit)//')',': ', &
-         chunk_smry%count, ' values ',trim(cmpr_type_char), chunk_smry%threshold, &
-         ', extreme is ',chunk_smry%extreme_val,' at ',&
-         '  lat ',chunk_smry%extreme_lat *rad2deg, &
-         ', lon ',chunk_smry%extreme_lon *rad2deg, &
-         ', lev ',chunk_smry%extreme_lev, &
-         ', chnk ',chunk_smry%extreme_chnk, &
-         ', col ',chunk_smry%extreme_col  
+         'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
+         trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
+         chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
+         ', extreme is ',chunk_smry(ifld)%extreme_val,' at ',&
+         '  lat ',chunk_smry(ifld)%extreme_lat *rad2deg, &
+         ', lon ',chunk_smry(ifld)%extreme_lon *rad2deg, &
+         ', lev ',chunk_smry(ifld)%extreme_lev, &
+         ', chnk ',chunk_smry(ifld)%extreme_chnk, &
+         ', col ',chunk_smry(ifld)%extreme_col  
     end if
   
   end subroutine get_chunk_smry_m_lev_real
@@ -365,19 +375,29 @@ contains
   !   subroutine deals with fields that do not have a vertical distribution (e.g. surface
   !   fluxes and vertical integrals). 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_1_lev_real( ncol, array, lat, lon, chunk_smry )
+  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array, lat, lon, chunk_smry, ifld )
 
+    character(len=*),  intent(in)    :: fldname
+    character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol              ! number of columns packed in array
     real(r8),          intent(in)    :: array(ncol)       ! array of values to be checked
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
-    type(tp_stat_smry),intent(inout) :: chunk_smry
+    type(tp_stat_smry),intent(inout) :: chunk_smry(:)
+    integer,           intent(out)   :: ifld
 
     ! Local variables
 
     integer  :: iflag(ncol) 
     integer  :: idx(1)
     character(len=shortchar) :: cmpr_type_char
+
+    !-------------------------------------------------------------------------
+    call get_smry_field_idx( fldname, procname, ifld )
+
+    if (ifld.eq.-999) then
+       return
+    end if
   
     !-----------------------------------------------------------------------
     ! Calculate the total number of columns with value exceeding threshold
@@ -385,52 +405,52 @@ contains
   
     iflag(:) = 0
 
-    SELECT CASE (chunk_smry%cmpr_type)
+    SELECT CASE (chunk_smry(ifld)%cmpr_type)
     CASE (GREATER_EQ)
       cmpr_type_char = '>='
-      where( array .ge. chunk_smry%threshold ) iflag = 1
+      where( array .ge. chunk_smry(ifld)%threshold ) iflag = 1
       idx = maxloc( array )
 
     CASE (SMALLER_THAN)
       cmpr_type_char = '<'
-      where( array .lt. chunk_smry%threshold ) iflag = 1
+      where( array .lt. chunk_smry(ifld)%threshold ) iflag = 1
       idx = minloc( array )
 
     CASE (ABS_GREATER_EQ)
       cmpr_type_char = 'ABS >='
-      WHERE( abs(array) .ge. chunk_smry%threshold ) iflag = 1
+      WHERE( abs(array) .ge. chunk_smry(ifld)%threshold ) iflag = 1
       idx = maxloc( abs(array) )
 
     CASE (ABS_SMALLER_THAN)
       cmpr_type_char = 'ABS <'
-      WHERE( abs(array) .lt. chunk_smry%threshold ) iflag = 1
+      WHERE( abs(array) .lt. chunk_smry(ifld)%threshold ) iflag = 1
       idx = minloc( abs(array) )
 
     END SELECT
 
     ! Total number of values exceeding threshold
 
-    chunk_smry%count = sum( iflag )
+    chunk_smry(ifld)%count = sum( iflag )
 
     ! The extreme value
 
-    chunk_smry%extreme_val  = array(idx(1))
-    chunk_smry%extreme_col  =       idx(1)
-    chunk_smry%extreme_lat  =   lat(idx(1))
-    chunk_smry%extreme_lon  =   lon(idx(1))
+    chunk_smry(ifld)%extreme_val  = array(idx(1))
+    chunk_smry(ifld)%extreme_col  =       idx(1)
+    chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
+    chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
   
     ! Send message to log file
   
     if (l_print_always) then
        write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4))') &
-         'chunk_smry: ',trim(chunk_smry%procedure_name), &
-         trim(chunk_smry%field_name),'('//trim(chunk_smry%field_unit)//')',': ', &
-         chunk_smry%count, ' values ',trim(cmpr_type_char), chunk_smry%threshold, &
-         ', extreme is ',chunk_smry%extreme_val,' at ',&
-         '  lat ',chunk_smry%extreme_lat *rad2deg, &
-         ', lon ',chunk_smry%extreme_lon *rad2deg, &
-         ', chnk ',chunk_smry%extreme_chnk, &
-         ', col ',chunk_smry%extreme_col  
+         'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
+         trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
+         chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
+         ', extreme is ',chunk_smry(ifld)%extreme_val,' at ',&
+         '  lat ',chunk_smry(ifld)%extreme_lat *rad2deg, &
+         ', lon ',chunk_smry(ifld)%extreme_lon *rad2deg, &
+         ', chnk ',chunk_smry(ifld)%extreme_chnk, &
+         ', col ',chunk_smry(ifld)%extreme_col  
     end if
   
   end subroutine get_chunk_smry_1_lev_real

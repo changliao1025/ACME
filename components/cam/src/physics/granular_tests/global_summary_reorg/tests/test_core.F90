@@ -46,7 +46,7 @@ contains
     !-------------------------------
     ! open an ASCII file for output
     !-------------------------------
-    open(unit=iulog,file='unitTest_1',status='unknown')
+   !open(unit=iulog,file='unitTest_1',status='unknown')
 
     write(iulog,*)
     write(iulog,*) 'Active domain size: ',pver,' levels, ',ncol,' columns, ',(endchunk-begchunk+1),' chunks.'
@@ -122,17 +122,17 @@ contains
          n_tot_cnt_in_chunk(ichnk,icnst) = 0
 
          itr = icnst
-         call get_smry_field_idx(cnst_name(icnst),'test_part_1',istat)
-         call get_chunk_smry( ncol, pver, phys_state(ichnk)%q(:ncol,:,itr), &! intent(in)
+         call get_chunk_smry( cnst_name(icnst),'test_part_1',               &! intent(in)
+                              ncol, pver, phys_state(ichnk)%q(:ncol,:,itr), &! intent(in)
                               phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent(in)
-                              chunk_smry(ichnk,istat) )                      ! intent(inout)
+                              chunk_smry(ichnk,:), istat )                      ! intent(inout)
 
          n_tot_cnt_in_chunk(ichnk,icnst) = n_tot_cnt_in_chunk(ichnk,icnst) + chunk_smry(ichnk,istat)%count
 
-         call get_smry_field_idx(cnst_name(icnst),'test_part_2',istat)
-         call get_chunk_smry( ncol, pver, phys_state(ichnk)%q(:ncol,:,itr), &! intent(in)
+         call get_chunk_smry( cnst_name(icnst),'test_part_2',               &! intent(in)
+                              ncol, pver, phys_state(ichnk)%q(:ncol,:,itr), &! intent(in)
                               phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent(in)
-                              chunk_smry(ichnk,istat) )                      ! intent(inout)
+                              chunk_smry(ichnk,:), istat )                   ! intent(inout)
 
          n_tot_cnt_in_chunk(ichnk,icnst) = n_tot_cnt_in_chunk(ichnk,icnst) + chunk_smry(ichnk,istat)%count
 
@@ -201,7 +201,7 @@ contains
     write(iulog,*) ' all results conformed with expected values'
     write(iulog,*) '==========================================='
 
-    close(unit=iulog)
+   !close(unit=iulog)
 
   end subroutine finalize
 
