@@ -89,6 +89,7 @@ module global_summary
   logical                 :: l_smry_arrays_allocated = .false.
 
   logical                 :: l_global_smry_verbose = .true.
+ !logical                 :: l_global_smry_verbose = .false.
 
 #ifdef UNIT_TEST
   logical :: l_print_always = .true.    ! always print message in log file 
@@ -306,13 +307,13 @@ contains
   !   in a single chunk of CAM's physics grid. The particular incarnation of the 
   !   subroutine deals with fields that have multiple vertical levels. 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array, lat, lon, chunk_smry, ifld )
+  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array_in, lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
     character(len=*),  intent(in)    :: procname
-    integer,           intent(in)    :: ncol              ! number of columns packed in array
-    integer,           intent(in)    :: nlev              ! number of vertical levels
-    real(r8),          intent(in)    :: array(ncol,nlev)  ! array of values to be checked
+    integer,           intent(in)    :: ncol                 ! number of columns packed in array
+    integer,           intent(in)    :: nlev                 ! number of vertical levels
+    real(r8),          intent(in)    :: array_in(ncol,nlev)  ! input array of values to be checked
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
@@ -320,16 +321,14 @@ contains
 
     ! Local variables
 
+    real(r8) :: array(ncol,nlev)  ! equals array_in or abs(array_in) 
     integer  :: iflag(ncol,nlev) 
     integer  :: idx(2)
     character(len=shortchar) :: cmpr_type_char
   
     !-------------------------------------------------------------------------
     call get_smry_field_idx( fldname, procname, ifld )
-
-    if (ifld.eq.INT_UNDEF) then
-       return
-    end if
+    if (ifld.eq.INT_UNDEF) return
 
     !-------------------------------------------------------------------------
     ! Calculate the total number of grid cells with value exceeding threshold
@@ -340,23 +339,27 @@ contains
     SELECT CASE (chunk_smry(ifld)%cmpr_type)
     CASE (GREATER_EQ)
       cmpr_type_char = '>='
+      array = array_in
       where( array .ge. chunk_smry(ifld)%threshold ) iflag = 1
       idx = maxloc( array )
 
     CASE (SMALLER_THAN)
       cmpr_type_char = '<'
+      array = array_in
       where( array .lt. chunk_smry(ifld)%threshold ) iflag = 1
       idx = minloc( array )
 
     CASE (ABS_GREATER_EQ)
       cmpr_type_char = 'ABS >='
-      WHERE( abs(array) .ge. chunk_smry(ifld)%threshold ) iflag = 1
-      idx = maxloc( abs(array) )
+      array = abs(array_in)
+      WHERE( array .ge. chunk_smry(ifld)%threshold ) iflag = 1
+      idx = maxloc( array )
 
     CASE (ABS_SMALLER_THAN)
       cmpr_type_char = 'ABS < '
-      WHERE( abs(array) .lt. chunk_smry(ifld)%threshold ) iflag = 1
-      idx = minloc( abs(array) )
+      array = abs(array_in)
+      WHERE( array .lt. chunk_smry(ifld)%threshold ) iflag = 1
+      idx = minloc( array )
 
     END SELECT
 
@@ -398,12 +401,12 @@ contains
   !   subroutine deals with fields that do not have a vertical distribution (e.g. surface
   !   fluxes and vertical integrals). 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array, lat, lon, chunk_smry, ifld )
+  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array_in, lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
     character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol              ! number of columns packed in array
-    real(r8),          intent(in)    :: array(ncol)       ! array of values to be checked
+    real(r8),          intent(in)    :: array_in(ncol)    ! input array of values to be checked
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
@@ -411,16 +414,14 @@ contains
 
     ! Local variables
 
+    real(r8) :: array(ncol)    ! equals array_in or abs(array_in) 
     integer  :: iflag(ncol) 
     integer  :: idx(1)
     character(len=shortchar) :: cmpr_type_char
 
     !-------------------------------------------------------------------------
     call get_smry_field_idx( fldname, procname, ifld )
-
-    if (ifld.eq.INT_UNDEF) then
-       return
-    end if
+    if (ifld.eq.INT_UNDEF) return
   
     !-----------------------------------------------------------------------
     ! Calculate the total number of columns with value exceeding threshold
@@ -431,23 +432,27 @@ contains
     SELECT CASE (chunk_smry(ifld)%cmpr_type)
     CASE (GREATER_EQ)
       cmpr_type_char = '>='
+      array = array_in
       where( array .ge. chunk_smry(ifld)%threshold ) iflag = 1
       idx = maxloc( array )
 
     CASE (SMALLER_THAN)
       cmpr_type_char = '<'
+      array = array_in
       where( array .lt. chunk_smry(ifld)%threshold ) iflag = 1
       idx = minloc( array )
 
     CASE (ABS_GREATER_EQ)
       cmpr_type_char = 'ABS >='
-      WHERE( abs(array) .ge. chunk_smry(ifld)%threshold ) iflag = 1
-      idx = maxloc( abs(array) )
+      array = abs(array_in)
+      WHERE( array .ge. chunk_smry(ifld)%threshold ) iflag = 1
+      idx = maxloc( array )
 
     CASE (ABS_SMALLER_THAN)
       cmpr_type_char = 'ABS <'
-      WHERE( abs(array) .lt. chunk_smry(ifld)%threshold ) iflag = 1
-      idx = minloc( abs(array) )
+      array = abs(array_in)
+      WHERE( array .lt. chunk_smry(ifld)%threshold ) iflag = 1
+      idx = minloc( array )
 
     END SELECT
 
@@ -580,11 +585,13 @@ contains
 #endif
     character(len=shortchar) :: cmpr_type_char
 
+    if (current_number_of_smry_fields.lt.1) return
+
     !--------------------------------------------
     ! Get domain summaries for each MPI process
     !--------------------------------------------
     do ii = 1,current_number_of_smry_fields
-       call get_domain_smry( chunk_smry_2d(:,ii), domain_smry_1d(ii) ) !intent: 3xin, inout
+       call get_domain_smry( chunk_smry_2d(:,ii), domain_smry_1d(ii) )
     end do
 
     !--------------------------------------------
@@ -629,9 +636,11 @@ contains
     end if
 
     ! Sum up the violation counts
+
     if (current_number_of_smry_fields.gt.0) then
        call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, 0, mpicom)
     end if
+
     !- MPI communications done ---
 
     ! Unpack results after MPI communication
@@ -654,10 +663,8 @@ contains
 
 #else
 
-    do ii = 1,current_number_of_smry_fields
-       global_smry_1d(ii)%extreme_val = domain_smry_1d(ii)%extreme_val 
-       global_smry_1d(ii)%count       = domain_smry_1d(ii)%count
-    end do
+    global_smry_1d(:)%extreme_val = domain_smry_1d(:)%extreme_val 
+    global_smry_1d(:)%count       = domain_smry_1d(:)%count
 
 #endif
 
@@ -684,10 +691,21 @@ contains
       ! Master proc prints out the global summary
 
       if (masterproc) then
-        write(iulog,*)
-        write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')   &
-                    'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
-                    'Count','Extreme','Lat','Lon','Lev','Chunk','Col'
+
+        if (l_global_smry_verbose) then
+           write(iulog,*)
+           write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')   &
+                       'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
+                       'Count','Extreme','Lat','Lon','Lev','Chunk','Col'
+        else
+         if (ii.eq.1) then
+           write(iulog,*)
+           write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11)')                 &
+                       'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
+                       'Count','Extreme'
+         end if
+        end if
+
         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')          &
                     'GLB_VERIF_SMRY:',nstep, trim(global_smry_1d(ii)%procedure_name),         &
                     trim(global_smry_1d(ii)%field_name), trim(global_smry_1d(ii)%field_unit), &
@@ -715,7 +733,6 @@ contains
                      domain_smry_1d(ii)%extreme_col
       end if
 
-      write(iulog,*)
     end do
 
   end subroutine get_global_smry

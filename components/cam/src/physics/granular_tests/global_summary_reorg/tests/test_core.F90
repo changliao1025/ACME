@@ -35,7 +35,7 @@ contains
 
     use physpkg,       only: phys_init
 
-    use global_summary,only: SMALLER_THAN, GREATER_EQ, add_smry_field
+    use global_summary,only: SMALLER_THAN, GREATER_EQ, ABS_SMALLER_THAN, ABS_GREATER_EQ, add_smry_field
 
     integer :: nstep = STEP
     integer :: idummy, icol, ichnk
@@ -60,7 +60,9 @@ contains
     !-------------------------------
     call cnst_add('Q',      mwh2o, cpwv,  1.E-12_r8, idummy, longname='Specific humidity')
     call cnst_add('CLDLIQ', mwdry, cpair, 0._r8,     idummy, longname='Grid box averaged cloud liquid amount')
-    call cnst_add('CLDICE', mwdry, cpair, 0._r8,     idummy, longname='Grid box averaged cloud ice amount')
+
+    call cnst_add('COLIDX',    mwdry, cpair, 0._r8,     idummy, longname='Column index as real value, for unit test')
+    call cnst_add('NEGCOLIDX', mwdry, cpair, 0._r8,     idummy, longname='Negative column index as real value, for unit test')
 
     !-------------------------------------------------------------------------
     ! Register fields for calculating global statistics summary.
@@ -73,8 +75,11 @@ contains
     call add_smry_field('CLDLIQ','test_part_1','kg/kg',GREATER_EQ,  1.E-9_r8)
     call add_smry_field('CLDLIQ','test_part_2','kg/kg',SMALLER_THAN,1.E-9_r8)
 
-    call add_smry_field('CLDICE','test_part_1','kg/kg',SMALLER_THAN,5._r8)
-    call add_smry_field('CLDICE','test_part_2','kg/kg',GREATER_EQ,  5._r8)
+    call add_smry_field('COLIDX','test_part_1','kg/kg',SMALLER_THAN,5._r8)
+    call add_smry_field('COLIDX','test_part_2','kg/kg',GREATER_EQ,  5._r8)
+
+    call add_smry_field('NEGCOLIDX','test_part_1','kg/kg',ABS_SMALLER_THAN,5._r8)
+    call add_smry_field('NEGCOLIDX','test_part_2','kg/kg',ABS_GREATER_EQ,  5._r8)
 
     !-------------------------------------------------------------------------------
     ! Allocate memory for state, tend, and stat vectors; read in initial conditions.
@@ -84,7 +89,8 @@ contains
     ! Re-assign values to CLDICE to facilitate verification
     do ichnk=begchunk,endchunk
     do icol = 1,ncol
-       phys_state(ichnk)%q(icol,:,3) = icol*1._r8
+       phys_state(ichnk)%q(icol,:,3) =  icol*1._r8
+       phys_state(ichnk)%q(icol,:,4) = -icol*1._r8
     end do
     end do
 
