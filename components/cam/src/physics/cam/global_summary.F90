@@ -81,10 +81,14 @@ module global_summary
 
   integer,parameter       :: max_number_of_smry_fields = 1000
   integer,public          :: current_number_of_smry_fields = 0
+  integer                 :: n_smry_fields_mpimax = 0   ! number of fields needing mpimax for mpi_allreduce
+  integer                 :: n_smry_fields_mpimin = 0   ! number of fields needing mpimin for mpi_allreduce
 
   character(len=longchar) :: msg 
   real(r8),parameter      :: rad2deg = 180._r8/pi
   logical                 :: l_smry_arrays_allocated = .false.
+
+  logical                 :: l_global_smry_verbose = .true.
 
 #ifdef UNIT_TEST
   logical :: l_print_always = .true.    ! always print message in log file 
@@ -162,6 +166,22 @@ contains
     global_smry_1d(ii)%field_unit     = trim(fldunit)
     global_smry_1d(ii)%threshold      = threshold
     global_smry_1d(ii)%cmpr_type      = cmprtype
+
+    ! Increase the field count for mpimax/mpimin
+
+    SELECT CASE (cmprtype)
+    CASE (GREATER_EQ,ABS_GREATER_EQ)
+       n_smry_fields_mpimax = n_smry_fields_mpimax + 1
+
+    CASE (SMALLER_THAN,ABS_SMALLER_THAN)
+       n_smry_fields_mpimin = n_smry_fields_mpimin + 1
+
+    CASE DEFAULT
+       msg = trim(THIS_MODULE)//': unknown comparison for field '//trim(fldname) &
+                          //', procedure '//trim(procname)
+       call endrun(trim(msg))
+    END SELECT
+
 
     if (present(fldidx)) fldidx = ii 
  
@@ -550,17 +570,13 @@ contains
     integer :: ii
 
 #ifdef SPMD
-    integer           :: sndrcvcnt   ! number of element for single send/receive
-    integer,parameter :: nreal = 3   ! number of real variables to pack for mpigather
-    integer,parameter :: nintg = 4   ! number of integer variables to pack for mpigather
 
-    real(r8) :: real_array          (nreal,current_number_of_smry_fields)
-    real(r8) :: real_array_gathered (nreal,current_number_of_smry_fields,npes)
+    real(r8) :: snd_array_mpimax (n_smry_fields_mpimax)
+    real(r8) :: rcv_array_mpimax (n_smry_fields_mpimax)
 
-    integer  :: intg_array          (nintg,current_number_of_smry_fields)
-    integer  :: intg_array_gathered (nintg,current_number_of_smry_fields,npes)
+    real(r8) :: snd_array_mpimin (n_smry_fields_mpimin)
+    real(r8) :: rcv_array_mpimin (n_smry_fields_mpimin)
 
-    integer  :: idx(1), ipe
 #endif
     character(len=shortchar) :: cmpr_type_char
 
@@ -577,100 +593,130 @@ contains
 #ifdef SPMD
     ! Pack arrays for MPI communication
 
-    real_array(1,:) = domain_smry_1d(:)%extreme_val
-    real_array(2,:) = domain_smry_1d(:)%extreme_lat
-    real_array(3,:) = domain_smry_1d(:)%extreme_lon
+    imax = 0
+    imin = 0
 
-    intg_array(1,:) = domain_smry_1d(:)%extreme_lev
-    intg_array(2,:) = domain_smry_1d(:)%extreme_col
-    intg_array(3,:) = domain_smry_1d(:)%extreme_chnk
-    intg_array(4,:) = domain_smry_1d(:)%count
+    do ii = 1,current_number_of_smry_fields
 
-    ! Master process gathers info from all processes
+      SELECT CASE (chunk_smry(ii)%cmpr_type)
+      CASE (GREATER_EQ,ABS_GREATER_EQ)
+        imax = imax +1
+        snd_array_mpimax(imax) = domain_smry_1d(ii)%extreme_val
+      
+      CASE (SMALLER_THAN,ABS_SMALLER_THAN)
+        imin = imin +1
+        snd_array_mpimin(imin) = domain_smry_1d(ii)%extreme_val
+      END SELECT
+    end do
 
-    sndrcvcnt = nreal*current_number_of_smry_fields
-    call mpigather( real_array, sndrcvcnt, mpir8,  real_array_gathered, sndrcvcnt, mpir8,  0, mpicom )
+    !- MPI communications ---
+    !  Find the global max/min values
 
-    sndrcvcnt = nintg*current_number_of_smry_fields
-    call mpigather( intg_array, sndrcvcnt, mpiint, intg_array_gathered, sndrcvcnt, mpiint, 0, mpicom )
-#endif
-
-    ! Add the counts and locate the extreme values
-
-    if (masterproc) then
-
-      write(iulog,*)
-      write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')   &
-                  'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
-                  'Count','Extreme','Lat','Lon','Lev','Chunk','Col'
-
-      do ii = 1,current_number_of_smry_fields
-
-       SELECT CASE (global_smry_1d(ii)%cmpr_type)
-       CASE( GREATER_EQ )
-         cmpr_type_char = '>='
-#ifdef SPMD
-         idx = maxloc( real_array_gathered(1,ii,:) )
-#endif
-
-       CASE( ABS_GREATER_EQ)
-         cmpr_type_char = 'ABS >='
-#ifdef SPMD
-         idx = maxloc( abs(real_array_gathered(1,ii,:)) )
-#endif
-
-       CASE( SMALLER_THAN)
-         cmpr_type_char = '<'
-#ifdef SPMD
-         idx = minloc( real_array_gathered(1,ii,:) )
-#endif
-
-       CASE( ABS_SMALLER_THAN)
-         cmpr_type_char = 'ABS <'
-#ifdef SPMD
-         idx = minloc( abs(real_array_gathered(1,ii,:)) )
-#endif
-       END SELECT
-
-#ifdef SPMD
-       ipe = idx(1)
-
-       global_smry_1d(ii)%extreme_val = real_array_gathered(1,ii,ipe)
-       global_smry_1d(ii)%extreme_lat = real_array_gathered(2,ii,ipe)
-       global_smry_1d(ii)%extreme_lon = real_array_gathered(3,ii,ipe)
-
-       global_smry_1d(ii)%extreme_lev  = intg_array_gathered(1,ii,ipe)
-       global_smry_1d(ii)%extreme_col  = intg_array_gathered(2,ii,ipe)
-       global_smry_1d(ii)%extreme_chnk = intg_array_gathered(3,ii,ipe)
-       global_smry_1d(ii)%count        = sum(intg_array_gathered(4,ii,:))
-#else
-       global_smry_1d(ii)%extreme_val = domain_smry_1d(ii)%extreme_val 
-       global_smry_1d(ii)%extreme_lat = domain_smry_1d(ii)%extreme_lat 
-       global_smry_1d(ii)%extreme_lon = domain_smry_1d(ii)%extreme_lon 
-
-       global_smry_1d(ii)%extreme_lev  = domain_smry_1d(ii)%extreme_lev
-       global_smry_1d(ii)%extreme_col  = domain_smry_1d(ii)%extreme_col
-       global_smry_1d(ii)%extreme_chnk = domain_smry_1d(ii)%extreme_chnk
-       global_smry_1d(ii)%count        = domain_smry_1d(ii)%count
-
-#endif
-
-       ! Send message to log file
-
-       write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')    &
-             'GLB_VERIF_SMRY:',nstep, trim(global_smry_1d(ii)%procedure_name),         &
-             trim(global_smry_1d(ii)%field_name), trim(global_smry_1d(ii)%field_unit), &
-             trim(cmpr_type_char), global_smry_1d(ii)%threshold, ':',                  &
-             global_smry_1d(ii)%count,               global_smry_1d(ii)%extreme_val,   &
-             global_smry_1d(ii)%extreme_lat*rad2deg, global_smry_1d(ii)%extreme_lon*rad2deg, &
-             global_smry_1d(ii)%extreme_lev, &
-             global_smry_1d(ii)%extreme_chnk,        global_smry_1d(ii)%extreme_col
-
-      end do
-
-      write(iulog,*)
-
+    if (imax.ne.n_smry_fields_mpimax) then
+       call endrun(trim(THIS_MODULE)//'imax .ne. n_smry_fields_mpimax!')
     end if
+
+    if (imax.gt.0) then
+       call mpiallmaxreal( snd_array_mpimax, rcv_array_mpimax, imax, mpir8,  0, mpicom )
+    end if
+
+    if (imin.ne.n_smry_fields_mpimin) then
+       call endrun(trim(THIS_MODULE)//'imin .ne. n_smry_fields_mpimin!')
+    end if
+
+    if (imin.gt.0) then
+       call mpiallminreal( snd_array_mpimin, rcv_array_mpimin, imin, mpir8,  0, mpicom )
+    end if
+
+    ! Sum up the violation counts
+    if (current_number_of_smry_fields.gt.0) then
+       call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, 0, mpicom)
+    end if
+    !- MPI communications done ---
+
+    ! Unpack results after MPI communication
+
+    imax = 0
+    imin = 0
+
+    do ii = 1,current_number_of_smry_fields
+
+      SELECT CASE (chunk_smry(ii)%cmpr_type)
+      CASE (GREATER_EQ,ABS_GREATER_EQ)
+        imax = imax +1
+        global_smry_1d(ii)%extreme_val = rcv_array_mpimax(imax)
+  
+      CASE (SMALLER_THAN,ABS_SMALLER_THAN)
+        imin = imin +1
+        global_smry_1d(ii)%extreme_val = rcv_array_mpimin(imin)
+      END SELECT
+    end do
+
+#else
+
+    do ii = 1,current_number_of_smry_fields
+       global_smry_1d(ii)%extreme_val = domain_smry_1d(ii)%extreme_val 
+       global_smry_1d(ii)%count       = domain_smry_1d(ii)%count
+    end do
+
+#endif
+
+    !-------------------------------
+    ! Print messages to log file
+    !-------------------------------
+    do ii = 1,current_number_of_smry_fields
+
+      SELECT CASE (global_smry_1d(ii)%cmpr_type)
+      CASE( GREATER_EQ )
+        cmpr_type_char = '>='
+
+      CASE( ABS_GREATER_EQ)
+        cmpr_type_char = 'ABS >='
+
+      CASE( SMALLER_THAN)
+        cmpr_type_char = '<'
+
+      CASE( ABS_SMALLER_THAN)
+        cmpr_type_char = 'ABS <'
+
+      END SELECT
+
+      ! Master proc prints out the global summary
+
+      if (masterproc) then
+        write(iulog,*)
+        write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')   &
+                    'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
+                    'Count','Extreme','Lat','Lon','Lev','Chunk','Col'
+        write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')          &
+                    'GLB_VERIF_SMRY:',nstep, trim(global_smry_1d(ii)%procedure_name),         &
+                    trim(global_smry_1d(ii)%field_name), trim(global_smry_1d(ii)%field_unit), &
+                    trim(cmpr_type_char), global_smry_1d(ii)%threshold, ':',                  &
+                    global_smry_1d(ii)%count,global_smry_1d(ii)%extreme_val
+      end if
+
+      ! Print locations of extreme value to log file
+
+      if ( l_global_smry_verbose .and. &
+         (global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val) ) then
+
+         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')    &
+                     'GLB_VERIF_SMRY:',nstep, &
+                     trim(domain_smry_1d(ii)%procedure_name),                 &
+                     trim(domain_smry_1d(ii)%field_name),                     &
+                     trim(domain_smry_1d(ii)%field_unit) ,                     &
+                     trim(cmpr_type_char), domain_smry_1d(ii)%threshold, ':', &
+                     global_smry_1d(ii)%count,               &! print GLOBAL count
+                     domain_smry_1d(ii)%extreme_val,         &
+                     domain_smry_1d(ii)%extreme_lat*rad2deg, &
+                     domain_smry_1d(ii)%extreme_lon*rad2deg, &
+                     domain_smry_1d(ii)%extreme_lev,         &
+                     domain_smry_1d(ii)%extreme_chnk,        &
+                     domain_smry_1d(ii)%extreme_col
+      end if
+
+      write(iulog,*)
+    end do
 
   end subroutine get_global_smry
 

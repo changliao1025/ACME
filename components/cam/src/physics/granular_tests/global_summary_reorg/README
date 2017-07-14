@@ -8,5 +8,5 @@ To execute the test, use the following 4 commands
   make
   ./exe params.txt
 
-then check the file unitTest_1 to see whether it ends with 
+then check either the stdout or the file unitTest_1 for
 the message "all results conformed with expected values"
