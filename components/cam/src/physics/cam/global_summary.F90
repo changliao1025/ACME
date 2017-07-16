@@ -582,8 +582,6 @@ contains
     real(r8) :: snd_array_mpimin (n_smry_fields_mpimin)
     real(r8) :: rcv_array_mpimin (n_smry_fields_mpimin)
 
-    integer :: imax, imin
-
 #endif
     character(len=shortchar) :: cmpr_type_char
 
@@ -607,7 +605,7 @@ contains
 
     do ii = 1,current_number_of_smry_fields
 
-      SELECT CASE (domain_smry_1d(ii)%cmpr_type)
+      SELECT CASE (chunk_smry(ii)%cmpr_type)
       CASE (GREATER_EQ,ABS_GREATER_EQ)
         imax = imax +1
         snd_array_mpimax(imax) = domain_smry_1d(ii)%extreme_val
@@ -619,31 +617,28 @@ contains
     end do
 
     !- MPI communications ---
-    !
-    !  Find the global max values
+    !  Find the global max/min values
 
     if (imax.ne.n_smry_fields_mpimax) then
        call endrun(trim(THIS_MODULE)//'imax .ne. n_smry_fields_mpimax!')
     end if
 
     if (imax.gt.0) then
-       call mpiallmaxreal( snd_array_mpimax, rcv_array_mpimax, imax, mpir8,  mpicom )
+       call mpiallmaxreal( snd_array_mpimax, rcv_array_mpimax, imax, mpir8,  0, mpicom )
     end if
-
-    !  Find the global min values
 
     if (imin.ne.n_smry_fields_mpimin) then
        call endrun(trim(THIS_MODULE)//'imin .ne. n_smry_fields_mpimin!')
     end if
 
     if (imin.gt.0) then
-       call mpiallminreal( snd_array_mpimin, rcv_array_mpimin, imin, mpir8,  mpicom )
+       call mpiallminreal( snd_array_mpimin, rcv_array_mpimin, imin, mpir8,  0, mpicom )
     end if
 
     ! Sum up the violation counts
 
     if (current_number_of_smry_fields.gt.0) then
-       call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, current_number_of_smry_fields, mpicom)
+       call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, 0, mpicom)
     end if
 
     !- MPI communications done ---
@@ -655,7 +650,7 @@ contains
 
     do ii = 1,current_number_of_smry_fields
 
-      SELECT CASE (domain_smry_1d(ii)%cmpr_type)
+      SELECT CASE (chunk_smry(ii)%cmpr_type)
       CASE (GREATER_EQ,ABS_GREATER_EQ)
         imax = imax +1
         global_smry_1d(ii)%extreme_val = rcv_array_mpimax(imax)
@@ -697,18 +692,11 @@ contains
 
       if (masterproc) then
 
-        if (l_global_smry_verbose) then
-           write(iulog,*)
-           write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')   &
-                       'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
-                       'Count','Extreme','Lat','Lon','Lev','Chunk','Col'
-        else
-         if (ii.eq.1) then
-           write(iulog,*)
-           write(iulog,'(15x,a8,a36,a20,a12, a10,a11,a2, a8, a11)')                 &
-                       'nstep','Procedure','Field','Unit','Cmpr.','Threshold','',   &
-                       'Count','Extreme'
-         end if
+        if (ii.eq.1) then
+          write(iulog,*)
+          write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11)')                 &
+                      'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
+                      'Threshold','', 'Count','Extreme'
         end if
 
         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')          &
@@ -722,6 +710,11 @@ contains
 
       if ( l_global_smry_verbose .and. &
          (global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val) ) then
+
+         write(iulog,*)
+         write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')    &
+                     'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
+                     'Threshold','','Count','Extreme','Lat','Lon','Lev','Chunk','Col'
 
          write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')    &
                      'GLB_VERIF_SMRY:',nstep, &
