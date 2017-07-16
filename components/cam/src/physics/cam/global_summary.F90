@@ -582,6 +582,8 @@ contains
     real(r8) :: snd_array_mpimin (n_smry_fields_mpimin)
     real(r8) :: rcv_array_mpimin (n_smry_fields_mpimin)
 
+    integer :: imax, imin
+
 #endif
     character(len=shortchar) :: cmpr_type_char
 
@@ -605,7 +607,7 @@ contains
 
     do ii = 1,current_number_of_smry_fields
 
-      SELECT CASE (chunk_smry(ii)%cmpr_type)
+      SELECT CASE (domain_smry_1d(ii)%cmpr_type)
       CASE (GREATER_EQ,ABS_GREATER_EQ)
         imax = imax +1
         snd_array_mpimax(imax) = domain_smry_1d(ii)%extreme_val
@@ -617,28 +619,31 @@ contains
     end do
 
     !- MPI communications ---
-    !  Find the global max/min values
+    !
+    !  Find the global max values
 
     if (imax.ne.n_smry_fields_mpimax) then
        call endrun(trim(THIS_MODULE)//'imax .ne. n_smry_fields_mpimax!')
     end if
 
     if (imax.gt.0) then
-       call mpiallmaxreal( snd_array_mpimax, rcv_array_mpimax, imax, mpir8,  0, mpicom )
+       call mpiallmaxreal( snd_array_mpimax, rcv_array_mpimax, imax, mpir8,  mpicom )
     end if
+
+    !  Find the global min values
 
     if (imin.ne.n_smry_fields_mpimin) then
        call endrun(trim(THIS_MODULE)//'imin .ne. n_smry_fields_mpimin!')
     end if
 
     if (imin.gt.0) then
-       call mpiallminreal( snd_array_mpimin, rcv_array_mpimin, imin, mpir8,  0, mpicom )
+       call mpiallminreal( snd_array_mpimin, rcv_array_mpimin, imin, mpir8,  mpicom )
     end if
 
     ! Sum up the violation counts
 
     if (current_number_of_smry_fields.gt.0) then
-       call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, 0, mpicom)
+       call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, current_number_of_smry_fields, mpicom)
     end if
 
     !- MPI communications done ---
@@ -650,7 +655,7 @@ contains
 
     do ii = 1,current_number_of_smry_fields
 
-      SELECT CASE (chunk_smry(ii)%cmpr_type)
+      SELECT CASE (domain_smry_1d(ii)%cmpr_type)
       CASE (GREATER_EQ,ABS_GREATER_EQ)
         imax = imax +1
         global_smry_1d(ii)%extreme_val = rcv_array_mpimax(imax)

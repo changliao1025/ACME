@@ -903,7 +903,7 @@
    end subroutine mpisum
 !****************************************************************
 
-   subroutine mpiallsumint (sendbuf, recvbuf, cnt, root, comm)
+   subroutine mpiallsumint (sendbuf, recvbuf, cnt, comm)
 !
 ! Sums sendbuf across all processors on communicator, returning
 ! result to all.
@@ -921,7 +921,6 @@
    integer, intent(in):: sendbuf(*)
    integer, intent(out):: recvbuf(*)
    integer, intent(in):: cnt
-   integer, intent(in):: root
    integer, intent(in):: comm
 
    integer ier   !MP error code
@@ -929,8 +928,7 @@
 #if defined( WRAP_MPI_TIMING )
    call t_startf ('mpi_reduce')
 #endif
-   call mpi_allreduce (sendbuf, recvbuf, cnt, mpiint, mpi_sum, &
-                       root, comm, ier)
+   call mpi_allreduce (sendbuf, recvbuf, cnt, mpiint, mpi_sum, comm, ier)
    if (ier/=mpi_success) then
       write(iulog,*)'mpi_reduce failed ier=',ier
       call endrun
@@ -944,7 +942,7 @@
 
 !****************************************************************
 
-   subroutine mpiallmaxreal (sendbuf, recvbuf, cnt, datatype, root, comm)
+   subroutine mpiallmaxreal (sendbuf, recvbuf, cnt, datatype, comm)
 !
 ! Find the maximum value of sendbuf across all processors on communicator,
 ! returning result to all.
@@ -963,7 +961,6 @@
    real (r8), intent(out):: recvbuf(*)
    integer, intent(in):: cnt
    integer, intent(in):: datatype
-   integer, intent(in):: root
    integer, intent(in):: comm
 
    integer ier   !MP error code
@@ -971,8 +968,7 @@
 #if defined( WRAP_MPI_TIMING )
    call t_startf ('mpi_reduce')
 #endif
-   call mpi_allreduce (sendbuf, recvbuf, cnt, datatype, MPI_MAX, &
-                       root, comm, ier)
+   call mpi_allreduce (sendbuf, recvbuf, cnt, datatype, MPI_MAX, comm, ier)
    if (ier/=mpi_success) then
       write(iulog,*)'mpi_reduce in subroutine mpiallmaxreal failed ier=',ier
       call endrun
@@ -985,7 +981,7 @@
    end subroutine mpiallmaxreal
 
 !****************************************************************
-   subroutine mpiallminreal (sendbuf, recvbuf, cnt, datatype, root, comm)
+   subroutine mpiallminreal (sendbuf, recvbuf, cnt, datatype, comm)
 !
 ! Find the maximum value of sendbuf across all processors on communicator,
 ! returning result to all.
@@ -1004,7 +1000,6 @@
    real (r8), intent(out):: recvbuf(*)
    integer, intent(in):: cnt
    integer, intent(in):: datatype
-   integer, intent(in):: root
    integer, intent(in):: comm
 
    integer ier   !MP error code
@@ -1012,8 +1007,7 @@
 #if defined( WRAP_MPI_TIMING )
    call t_startf ('mpi_reduce')
 #endif
-   call mpi_allreduce (sendbuf, recvbuf, cnt, datatype, MPI_MIN, &
-                       root, comm, ier)
+   call mpi_allreduce (sendbuf, recvbuf, cnt, datatype, MPI_MIN, comm, ier)
    if (ier/=mpi_success) then
       write(iulog,*)'mpi_reduce in subroutine mpiminreal failed ier=',ier
       call endrun
