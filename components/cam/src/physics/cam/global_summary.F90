@@ -51,6 +51,12 @@ module global_summary
   integer,public,parameter :: ABS_SMALLER_THAN = -2
   integer,public,parameter :: ABS_GREATER_EQ   =  2
 
+  !----------------------------------------------
+  ! Types of fixers supported by this module
+
+  integer,public,parameter :: NO_FIX   = 0
+  integer,public,parameter :: CLIPPING = 1
+
   !----------------
   integer, parameter :: INT_UNDEF = -999
   real(r8),parameter :: FLT_UNDEF = -999._r8
@@ -66,6 +72,7 @@ module global_summary
     integer  :: cmpr_type  ! one of the comparison types defined above
     real(r8) :: threshold  ! threshold specified by developer/user
     integer  :: count = 0  ! total number of cells with values exceeding threshold
+    integer  :: fixer = NO_FIX  ! by default, do not fix values exceeding threshold
 
     ! extreme value and its location
 
@@ -120,7 +127,7 @@ contains
   !  The subroutine registers a new field for getting global summary. It is expected to be
   !  called during the initialization of various parameterizations.
   !--------------------------------------------------------------------------------------------
-  subroutine add_smry_field( fldname, procname, fldunit, cmprtype, threshold, fldidx )
+  subroutine add_smry_field( fldname, procname, fldunit, cmprtype, threshold, fldidx, fixer )
 
     character(len=*), intent(in)   :: fldname
     character(len=*), intent(in)   :: procname
@@ -128,6 +135,7 @@ contains
     real(r8)                       :: threshold
     integer                        :: cmprtype
     integer, intent(out), optional :: fldidx
+    integer, intent(out), optional :: fixer
 
     integer :: ii
 
@@ -167,6 +175,8 @@ contains
     global_smry_1d(ii)%field_unit     = trim(fldunit)
     global_smry_1d(ii)%threshold      = threshold
     global_smry_1d(ii)%cmpr_type      = cmprtype
+    if (present(fixer)) &
+    global_smry_1d(ii)%fixer          = fixer
 
     ! Increase the field count for mpimax/mpimin
 
@@ -182,7 +192,6 @@ contains
                           //', procedure '//trim(procname)
        call endrun(trim(msg))
     END SELECT
-
 
     if (present(fldidx)) fldidx = ii 
  
@@ -237,6 +246,8 @@ contains
     domain_smry_1d(1:current_number_of_smry_fields)%threshold = &
     global_smry_1d(1:current_number_of_smry_fields)%threshold
 
+    domain_smry_1d(1:current_number_of_smry_fields)%fixer     = &
+    global_smry_1d(1:current_number_of_smry_fields)%fixer
     !--------------------------------------
     ! Initialize array for chunk summaries 
     !--------------------------------------
@@ -266,6 +277,9 @@ contains
 
        chunk_smry_2d(ichnk,1:current_number_of_smry_fields)%threshold = &
       global_smry_1d(      1:current_number_of_smry_fields)%threshold
+
+       chunk_smry_2d(ichnk,1:current_number_of_smry_fields)%fixer     = &
+      global_smry_1d(      1:current_number_of_smry_fields)%fixer
 
        chunk_smry_2d(ichnk,1:current_number_of_smry_fields)%extreme_chnk = ichnk
     end do
@@ -307,7 +321,7 @@ contains
   !   in a single chunk of CAM's physics grid. The particular incarnation of the 
   !   subroutine deals with fields that have multiple vertical levels. 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array_in, lclip, &
+  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array_in, &
                                       &  lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
@@ -315,7 +329,6 @@ contains
     integer,           intent(in)    :: ncol                 ! number of columns packed in array
     integer,           intent(in)    :: nlev                 ! number of vertical levels
     real(r8),          intent(inout) :: array_in(ncol,nlev)  ! input array of values to be checked
-    logical,           intent(in)    :: lclip                ! if .t., clip values
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
@@ -377,16 +390,16 @@ contains
     chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
     chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
 
-   !! Clipping
+    ! Clipping
 
-    if (lclip) then
+    if (chunk_smry(ifld)%fixer.eq.CLIPPING) then
        where( iflag.eq.1)  array_in = chunk_smry(ifld)%threshold
     end if 
   
     ! Send message to log file
   
     if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,l2))') &
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -396,7 +409,7 @@ contains
          ', lev ',chunk_smry(ifld)%extreme_lev, &
          ', chnk ',chunk_smry(ifld)%extreme_chnk, &
          ', col ',chunk_smry(ifld)%extreme_col, &
-         ', clip = ',lclip  
+         ', fixer = ',chunk_smry(ifld)%fixer  
     end if
   
   end subroutine get_chunk_smry_m_lev_real
@@ -410,14 +423,13 @@ contains
   !   subroutine deals with fields that do not have a vertical distribution (e.g. surface
   !   fluxes and vertical integrals). 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array_in, lclip, &
+  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array_in, &
                                         lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
     character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol              ! number of columns packed in array
     real(r8),          intent(inout) :: array_in(ncol)    ! input array of values to be checked
-    logical,           intent(in)    :: lclip             ! if .t., clip values
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
@@ -480,14 +492,14 @@ contains
   
     ! Clipping
 
-    if (lclip) then
+    if (chunk_smry(ifld)%fixer.eq.CLIPPING) then
        where( iflag.eq.1)  array_in = chunk_smry(ifld)%threshold
     end if 
 
     ! Send message to log file
   
     if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,l2))') &
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -496,7 +508,7 @@ contains
          ', lon ',chunk_smry(ifld)%extreme_lon *rad2deg, &
          ', chnk ',chunk_smry(ifld)%extreme_chnk, &
          ', col ',chunk_smry(ifld)%extreme_col, &
-         ', clip = ',lclip  
+         ', fixer = ',chunk_smry(ifld)%fixer  
     end if
   
   end subroutine get_chunk_smry_1_lev_real
@@ -556,7 +568,7 @@ contains
     ! Send message to log file
   
     if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4))') &
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'domain_smry: ',trim(domain_smry%procedure_name), &
          trim(domain_smry%field_name),'('//trim(domain_smry%field_unit)//')',': ', &
          domain_smry%count, ' values ',trim(cmpr_type_char), domain_smry%threshold, &
@@ -565,7 +577,8 @@ contains
          ', lon ',domain_smry%extreme_lon *rad2deg, &
          ', lev ',domain_smry%extreme_lev, &
          ', chnk ',domain_smry%extreme_chnk, &
-         ', col ',domain_smry%extreme_col  
+         ', col ',domain_smry%extreme_col, &
+         ', fixer = ',domain_smry%fixer  
     end if
   
   end subroutine get_domain_smry
@@ -717,16 +730,17 @@ contains
 
         if (ii.eq.1) then
           write(iulog,*)
-          write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11)')                 &
+          write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11, a7)')                 &
                       'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
-                      'Threshold','', 'Count','Extreme'
+                      'Threshold','', 'Count','Extreme','Fixer'
         end if
 
-        write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')          &
+        write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,i7)')          &
                     'GLB_VERIF_SMRY:',nstep, trim(global_smry_1d(ii)%procedure_name),         &
                     trim(global_smry_1d(ii)%field_name), trim(global_smry_1d(ii)%field_unit), &
                     trim(cmpr_type_char), global_smry_1d(ii)%threshold, ':',                  &
-                    global_smry_1d(ii)%count,global_smry_1d(ii)%extreme_val
+                    global_smry_1d(ii)%count,global_smry_1d(ii)%extreme_val,                  &
+                    global_smry_1d(ii)%fixer 
       end if
 
       ! Print locations of extreme value to log file
@@ -736,12 +750,13 @@ contains
 
         if (ii.eq.1) then
          write(iulog,*)
-         write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a9,a5,a10,a4)')    &
+         write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a9,a5,a10,a4,a7)') &
                      'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
-                     'Threshold','','Count','Extreme','Lat','Lon','Lev','Chunk','Col'
+                     'Threshold','','Count','Extreme',                             &
+                     'Lat','Lon','Lev','Chunk','Col','Fixer'
         end if
 
-         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f9.2,i5,i10,i4)')    &
+         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f9.2,i5,i10,i4,i7)') &
                      'GLB_VERIF_SMRY:',nstep, &
                      trim(domain_smry_1d(ii)%procedure_name),                 &
                      trim(domain_smry_1d(ii)%field_name),                     &
@@ -753,7 +768,8 @@ contains
                      domain_smry_1d(ii)%extreme_lon*rad2deg, &
                      domain_smry_1d(ii)%extreme_lev,         &
                      domain_smry_1d(ii)%extreme_chnk,        &
-                     domain_smry_1d(ii)%extreme_col
+                     domain_smry_1d(ii)%extreme_col,         &
+                     domain_smry_1d(ii)%fixer
       end if
 
     end do
