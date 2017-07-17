@@ -127,7 +127,7 @@ contains
   !  The subroutine registers a new field for getting global summary. It is expected to be
   !  called during the initialization of various parameterizations.
   !--------------------------------------------------------------------------------------------
-  subroutine add_smry_field( fldname, procname, fldunit, cmprtype, threshold, fldidx, fixer )
+  subroutine add_smry_field( fldname, procname, fldunit, cmprtype, threshold, fixer, fldidx )
 
     character(len=*), intent(in)   :: fldname
     character(len=*), intent(in)   :: procname

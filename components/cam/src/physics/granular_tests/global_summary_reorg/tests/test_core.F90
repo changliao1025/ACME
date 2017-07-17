@@ -35,7 +35,8 @@ contains
 
     use physpkg,       only: phys_init
 
-    use global_summary,only: SMALLER_THAN, GREATER_EQ, ABS_SMALLER_THAN, ABS_GREATER_EQ, add_smry_field
+    use global_summary,only: SMALLER_THAN, GREATER_EQ, ABS_SMALLER_THAN, ABS_GREATER_EQ, CLIPPING
+    use global_summary,only: add_smry_field
 
     integer :: nstep = STEP
     integer :: idummy, icol, ichnk
@@ -82,8 +83,8 @@ contains
     call add_smry_field('NEGCOLIDX','test_part_1','-',ABS_SMALLER_THAN,5._r8)
     call add_smry_field('NEGCOLIDX','test_part_2','-',ABS_GREATER_EQ,  5._r8)
 
-    call add_smry_field('NEGCOLIDX_FIX','test_part_1','-',SMALLER_THAN,-4.5_r8)
-    call add_smry_field('NEGCOLIDX_FIX','test_part_2','-',GREATER_EQ,  -4.0_r8)
+    call add_smry_field('NEGCOLIDX_FIX','test_part_1','-',SMALLER_THAN,-4.5_r8,fixer=CLIPPING)
+    call add_smry_field('NEGCOLIDX_FIX','test_part_2','-',GREATER_EQ,  -4.0_r8,fixer=CLIPPING)
 
     !-------------------------------------------------------------------------------
     ! Allocate memory for state, tend, and stat vectors; read in initial conditions.
@@ -115,10 +116,10 @@ contains
 
     integer :: nstep = STEP
     integer :: itr, istat, istat1, istat2
-    integer :: icnst, ichnk, nchnk
+    integer :: icnst, ichnk, nchnk, k
     integer :: n_tot_cnt_in_chunk (begchunk:endchunk,PCNST)
     integer :: n_tot_cnt_in_domain(PCNST)
-    logical :: lclip
+
 
     ! Test functionalities for getting global statistics summary
 
@@ -129,22 +130,14 @@ contains
        write(iulog,*) '  chunk ',ichnk
        write(iulog,*) '-----------------------------'
 
-       lclip = .false.
-
        do icnst = 1,PCNST
-
-         if (icnst.eq.PCNST) then 
-            lclip = .true.
-         else
-            lclip = .false.
-         end if
 
          n_tot_cnt_in_chunk(ichnk,icnst) = 0
 
          itr = icnst
          call get_chunk_smry( cnst_name(icnst),'test_part_1',               &! intent:in
                               ncol, pver,                                   &! intent: in
-                              phys_state(ichnk)%q(:ncol,:,itr),lclip,       &! intent:inout, in
+                              phys_state(ichnk)%q(:ncol,:,itr),             &! intent:inout, in
                               phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent:in
                               chunk_smry(ichnk,:), istat )                   ! intent:inout, out
 
@@ -152,7 +145,7 @@ contains
 
          call get_chunk_smry( cnst_name(icnst),'test_part_2',               &! intent:in
                               ncol, pver,                                   &! intent:in
-                              phys_state(ichnk)%q(:ncol,:,itr),lclip,       &! intent:inout, in
+                              phys_state(ichnk)%q(:ncol,:,itr),             &! intent:inout, in
                               phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent:in
                               chunk_smry(ichnk,:), istat )                   ! intent:inout, out
 
@@ -179,6 +172,10 @@ contains
           write(iulog,*) "Actual   max. = ",maxval(phys_state(ichnk)%q(:ncol,:,itr))
           call endrun('Found clipping error! -- (2)')
        end if
+
+      !do k=1,PLEV
+      !   write(iulog,'(a,i4,20f12.3)') "lev = ",k,phys_state(ichnk)%q(:ncol,k,itr) 
+      !end do
 
     end do  ! ichnk=begchunk,endchunk
 
