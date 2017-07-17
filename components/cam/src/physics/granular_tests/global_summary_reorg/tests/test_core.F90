@@ -64,6 +64,7 @@ contains
     call cnst_add('COLIDX',    mwdry, cpair, 0._r8,     idummy, longname='Column index as real value, for unit test')
     call cnst_add('NEGCOLIDX', mwdry, cpair, 0._r8,     idummy, longname='Negative column index as real value, for unit test')
 
+    call cnst_add('NEGCOLIDX_FIX', mwdry, cpair, 0._r8, idummy, longname='Negative column index as real value, for unit test')
     !-------------------------------------------------------------------------
     ! Register fields for calculating global statistics summary.
     ! This has to be done before 'call phys_init' which allocates memory for 
@@ -75,11 +76,14 @@ contains
     call add_smry_field('CLDLIQ','test_part_1','kg/kg',GREATER_EQ,  1.E-9_r8)
     call add_smry_field('CLDLIQ','test_part_2','kg/kg',SMALLER_THAN,1.E-9_r8)
 
-    call add_smry_field('COLIDX','test_part_1','kg/kg',SMALLER_THAN,5._r8)
-    call add_smry_field('COLIDX','test_part_2','kg/kg',GREATER_EQ,  5._r8)
+    call add_smry_field('COLIDX','test_part_1','-',SMALLER_THAN,5._r8)
+    call add_smry_field('COLIDX','test_part_2','-',GREATER_EQ,  5._r8)
 
-    call add_smry_field('NEGCOLIDX','test_part_1','kg/kg',ABS_SMALLER_THAN,5._r8)
-    call add_smry_field('NEGCOLIDX','test_part_2','kg/kg',ABS_GREATER_EQ,  5._r8)
+    call add_smry_field('NEGCOLIDX','test_part_1','-',ABS_SMALLER_THAN,5._r8)
+    call add_smry_field('NEGCOLIDX','test_part_2','-',ABS_GREATER_EQ,  5._r8)
+
+    call add_smry_field('NEGCOLIDX_FIX','test_part_1','-',SMALLER_THAN,-4.5_r8)
+    call add_smry_field('NEGCOLIDX_FIX','test_part_2','-',GREATER_EQ,  -4.0_r8)
 
     !-------------------------------------------------------------------------------
     ! Allocate memory for state, tend, and stat vectors; read in initial conditions.
@@ -91,6 +95,7 @@ contains
     do icol = 1,ncol
        phys_state(ichnk)%q(icol,:,3) =  icol*1._r8
        phys_state(ichnk)%q(icol,:,4) = -icol*1._r8
+       phys_state(ichnk)%q(icol,:,5) = -icol*1._r8
     end do
     end do
 
@@ -113,6 +118,7 @@ contains
     integer :: icnst, ichnk, nchnk
     integer :: n_tot_cnt_in_chunk (begchunk:endchunk,PCNST)
     integer :: n_tot_cnt_in_domain(PCNST)
+    logical :: lclip
 
     ! Test functionalities for getting global statistics summary
 
@@ -123,32 +129,64 @@ contains
        write(iulog,*) '  chunk ',ichnk
        write(iulog,*) '-----------------------------'
 
+       lclip = .false.
+
        do icnst = 1,PCNST
+
+         if (icnst.eq.PCNST) then 
+            lclip = .true.
+         else
+            lclip = .false.
+         end if
 
          n_tot_cnt_in_chunk(ichnk,icnst) = 0
 
          itr = icnst
-         call get_chunk_smry( cnst_name(icnst),'test_part_1',               &! intent(in)
-                              ncol, pver, phys_state(ichnk)%q(:ncol,:,itr), &! intent(in)
-                              phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent(in)
-                              chunk_smry(ichnk,:), istat )                      ! intent(inout)
+         call get_chunk_smry( cnst_name(icnst),'test_part_1',               &! intent:in
+                              ncol, pver,                                   &! intent: in
+                              phys_state(ichnk)%q(:ncol,:,itr),lclip,       &! intent:inout, in
+                              phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent:in
+                              chunk_smry(ichnk,:), istat )                   ! intent:inout, out
 
          n_tot_cnt_in_chunk(ichnk,icnst) = n_tot_cnt_in_chunk(ichnk,icnst) + chunk_smry(ichnk,istat)%count
 
-         call get_chunk_smry( cnst_name(icnst),'test_part_2',               &! intent(in)
-                              ncol, pver, phys_state(ichnk)%q(:ncol,:,itr), &! intent(in)
-                              phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent(in)
-                              chunk_smry(ichnk,:), istat )                   ! intent(inout)
+         call get_chunk_smry( cnst_name(icnst),'test_part_2',               &! intent:in
+                              ncol, pver,                                   &! intent:in
+                              phys_state(ichnk)%q(:ncol,:,itr),lclip,       &! intent:inout, in
+                              phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent:in
+                              chunk_smry(ichnk,:), istat )                   ! intent:inout, out
 
          n_tot_cnt_in_chunk(ichnk,icnst) = n_tot_cnt_in_chunk(ichnk,icnst) + chunk_smry(ichnk,istat)%count
 
        end do
-    end do
 
-    !@assert #1
+       !@assert
+       ! check clipping.
+
+       itr = PCNST
+       istat = PCNST*2-1
+
+       if (minval(phys_state(ichnk)%q(:ncol,:,itr)) .ne. chunk_smry(ichnk,istat)%threshold ) then
+          write(iulog,*) "Expected min. = ",chunk_smry(ichnk,istat)%threshold
+          write(iulog,*) "Actual   min. = ",minval(phys_state(ichnk)%q(:ncol,:,itr))
+          call endrun('Found clipping error! -- (1)')
+       end if
+
+       istat = PCNST*2
+
+       if (maxval(phys_state(ichnk)%q(:ncol,:,itr)) .ne. chunk_smry(ichnk,istat)%threshold ) then
+          write(iulog,*) "Expected max. = ",chunk_smry(ichnk,istat)%threshold
+          write(iulog,*) "Actual   max. = ",maxval(phys_state(ichnk)%q(:ncol,:,itr))
+          call endrun('Found clipping error! -- (2)')
+       end if
+
+    end do  ! ichnk=begchunk,endchunk
+
+    !@assert
 
     if (any(n_tot_cnt_in_chunk/=ncol*pver)) then
-       write(iulog,*) n_tot_cnt_in_chunk
+       write(iulog,*) "Expected value of n_tot_cnt_in_chunk (all cols): ",ncol*pver
+       write(iulog,*) "Actual values  of n_tot_cnt_in_chunk (all cols): ",n_tot_cnt_in_chunk
        call endrun('Test error in chunk_smry.')
     end if
 
@@ -156,7 +194,7 @@ contains
 
     nchnk = endchunk-begchunk+1
     write(iulog,*) '-----------------------------'
-    write(iulog,*) '  entire domain in this CPU'
+    write(iulog,*) '  entire domain on this CPU'
     write(iulog,*) '-----------------------------'
 
     call get_global_smry( chunk_smry, domain_smry, nstep )
@@ -176,13 +214,13 @@ contains
                                   + domain_smry(istat2)%count
     end do
 
-    !@assert #2
+    !@assert
 
     if (any(n_tot_cnt_in_domain/=ncol*nchnk*pver)) then
        call endrun('Test error in domain_smry.')
     end if
 
-    !@assert #3
+    !@assert
     ! For each consitituent and stat_type, the total count for the domain shound match the sum of 
     ! the counts from all chunks.
 

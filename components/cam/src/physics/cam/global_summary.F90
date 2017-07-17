@@ -307,13 +307,15 @@ contains
   !   in a single chunk of CAM's physics grid. The particular incarnation of the 
   !   subroutine deals with fields that have multiple vertical levels. 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array_in, lat, lon, chunk_smry, ifld )
+  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array_in, lclip, &
+                                      &  lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
     character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol                 ! number of columns packed in array
     integer,           intent(in)    :: nlev                 ! number of vertical levels
-    real(r8),          intent(in)    :: array_in(ncol,nlev)  ! input array of values to be checked
+    real(r8),          intent(inout) :: array_in(ncol,nlev)  ! input array of values to be checked
+    logical,           intent(in)    :: lclip                ! if .t., clip values
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
@@ -374,11 +376,17 @@ contains
     chunk_smry(ifld)%extreme_lev  =       idx(2)
     chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
     chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
+
+   !! Clipping
+
+    if (lclip) then
+       where( iflag.eq.1)  array_in = chunk_smry(ifld)%threshold
+    end if 
   
     ! Send message to log file
   
     if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4))') &
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,l2))') &
          'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -387,7 +395,8 @@ contains
          ', lon ',chunk_smry(ifld)%extreme_lon *rad2deg, &
          ', lev ',chunk_smry(ifld)%extreme_lev, &
          ', chnk ',chunk_smry(ifld)%extreme_chnk, &
-         ', col ',chunk_smry(ifld)%extreme_col  
+         ', col ',chunk_smry(ifld)%extreme_col, &
+         ', clip = ',lclip  
     end if
   
   end subroutine get_chunk_smry_m_lev_real
@@ -401,12 +410,14 @@ contains
   !   subroutine deals with fields that do not have a vertical distribution (e.g. surface
   !   fluxes and vertical integrals). 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array_in, lat, lon, chunk_smry, ifld )
+  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array_in, lclip, &
+                                        lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
     character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol              ! number of columns packed in array
-    real(r8),          intent(in)    :: array_in(ncol)    ! input array of values to be checked
+    real(r8),          intent(inout) :: array_in(ncol)    ! input array of values to be checked
+    logical,           intent(in)    :: lclip             ! if .t., clip values
     real(r8),          intent(in)    :: lat(ncol)
     real(r8),          intent(in)    :: lon(ncol)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
@@ -467,10 +478,16 @@ contains
     chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
     chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
   
+    ! Clipping
+
+    if (lclip) then
+       where( iflag.eq.1)  array_in = chunk_smry(ifld)%threshold
+    end if 
+
     ! Send message to log file
   
     if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4))') &
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,l2))') &
          'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -478,7 +495,8 @@ contains
          '  lat ',chunk_smry(ifld)%extreme_lat *rad2deg, &
          ', lon ',chunk_smry(ifld)%extreme_lon *rad2deg, &
          ', chnk ',chunk_smry(ifld)%extreme_chnk, &
-         ', col ',chunk_smry(ifld)%extreme_col  
+         ', col ',chunk_smry(ifld)%extreme_col, &
+         ', clip = ',lclip  
     end if
   
   end subroutine get_chunk_smry_1_lev_real
@@ -695,7 +713,7 @@ contains
 
       ! Master proc prints out the global summary
 
-      if (masterproc) then
+      if (.not.l_global_smry_verbose .and. masterproc) then
 
         if (ii.eq.1) then
           write(iulog,*)
@@ -716,12 +734,14 @@ contains
       if ( l_global_smry_verbose .and. &
          (global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val) ) then
 
+        if (ii.eq.1) then
          write(iulog,*)
-         write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a8,a5,a10,a4)')    &
+         write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a9,a5,a10,a4)')    &
                      'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
                      'Threshold','','Count','Extreme','Lat','Lon','Lev','Chunk','Col'
+        end if
 
-         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f8.2,i5,i10,i4)')    &
+         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f9.2,i5,i10,i4)')    &
                      'GLB_VERIF_SMRY:',nstep, &
                      trim(domain_smry_1d(ii)%procedure_name),                 &
                      trim(domain_smry_1d(ii)%field_name),                     &
