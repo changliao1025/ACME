@@ -132,10 +132,10 @@ contains
     character(len=*), intent(in)   :: fldname
     character(len=*), intent(in)   :: procname
     character(len=*), intent(in)   :: fldunit
-    real(r8)                       :: threshold
     integer                        :: cmprtype
+    real(r8)                       :: threshold
     integer, intent(out), optional :: fldidx
-    integer, intent(out), optional :: fixer
+    integer, intent(in),  optional :: fixer
 
     integer :: ii
 
