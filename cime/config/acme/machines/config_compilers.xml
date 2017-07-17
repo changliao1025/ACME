@@ -1148,6 +1148,9 @@ for mct, etc.
 
 <compiler COMPILER="gnu" MACH="anvil">
   <ADD_SLIBS>$(shell $(NETCDF_PATH)/bin/nf-config --flibs) -llapack -lblas</ADD_SLIBS>
+  <MOAB_PATH>$(MOAB_DIR)</MOAB_PATH>
+  <ADD_SLIBS> -Wl,-rpath -Wl,$(NETCDF_PATH)/lib </ADD_SLIBS>
+  <CXX_LIBS>-lstdc++</CXX_LIBS>
   <GPTL_CPPDEFS> -DHAVE_NANOTIME -DBIT64 -DHAVE_SLASHPROC -DHAVE_GETTIMEOFDAY</GPTL_CPPDEFS>
   <PIO_FILESYSTEM_HINTS>gpfs </PIO_FILESYSTEM_HINTS>
 </compiler>

@@ -1090,6 +1090,12 @@
       <env name="NETCDF_PATH">$SHELL{which nf-config | xargs dirname | xargs dirname}</env>
       <env name="PNETCDF_PATH" mpilib="!mpi-serial">$SHELL{which pnetcdf_version | xargs dirname | xargs dirname}</env>
     </environment_variables>
+    <environment_variables compiler="gcc" mpilib="mvapich">
+      <env name="MOAB_DIR">/lcrc/project/ACME/MOAB-tempest/gcc-5.3/mvapich2-2.2</env>
+    </environment_variables>
+    <environment_variables compiler="intel" mpilib="mvapich">
+      <env name="MOAB_DIR">/lcrc/project/ACME/MOAB/intel-17.0.1/mvapich2-2.2</env>
+    </environment_variables>
     <environment_variables>
       <env name="OMP_STACKSIZE">256M</env>
       <env name="OMP_PROC_BIND">spread</env>
