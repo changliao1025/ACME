@@ -399,8 +399,8 @@ contains
   
     ! Send message to log file
   
-    if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
+    if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,1pe15.7, a,1pe15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -499,8 +499,8 @@ contains
 
     ! Send message to log file
   
-    if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
+    if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,1pe15.7, a,1pe15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -568,8 +568,8 @@ contains
 
     ! Send message to log file
   
-    if (l_print_always) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
+    if ( l_print_always .and. (domain_smry%count.gt.0) ) then
+       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,1pe15.7, a,1pe15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'domain_smry: ',trim(domain_smry%procedure_name), &
          trim(domain_smry%field_name),'('//trim(domain_smry%field_unit)//')',': ', &
          domain_smry%count, ' values ',trim(cmpr_type_char), domain_smry%threshold, &
@@ -708,6 +708,27 @@ contains
     !-------------------------------
     ! Print messages to log file
     !-------------------------------
+    ! Header line
+
+    if (.not.l_global_smry_verbose .and. masterproc) then
+
+       write(iulog,*)
+       write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11, a7)')                 &
+                   'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
+                   'Threshold','', 'Count','Extreme','Fixer'
+    end if
+
+    if (l_global_smry_verbose) then
+
+       write(iulog,*)
+       write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a9,a5,a10,a4,a7)') &
+                   'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
+                   'Threshold','','Count','Extreme',                             &
+                   'Lat','Lon','Lev','Chunk','Col','Fixer'
+    end if
+
+    ! Summary of each field
+
     do ii = 1,current_number_of_smry_fields
 
       SELECT CASE (global_smry_1d(ii)%cmpr_type)
@@ -727,16 +748,9 @@ contains
 
       ! Master proc prints out the global summary
 
-      if (.not.l_global_smry_verbose .and. masterproc) then
+      if (.not.l_global_smry_verbose .and. masterproc .and. global_smry_1d(ii)%count.gt.0 ) then
 
-        if (ii.eq.1) then
-          write(iulog,*)
-          write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11, a7)')                 &
-                      'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
-                      'Threshold','', 'Count','Extreme','Fixer'
-        end if
-
-        write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,i7)')          &
+        write(iulog,'(a15,i8,a36,a20,a12, a10,1pe11.3,a2, i8, 1pe11.3,i7)')          &
                     'GLB_VERIF_SMRY:',nstep, trim(global_smry_1d(ii)%procedure_name),         &
                     trim(global_smry_1d(ii)%field_name), trim(global_smry_1d(ii)%field_unit), &
                     trim(cmpr_type_char), global_smry_1d(ii)%threshold, ':',                  &
@@ -746,18 +760,10 @@ contains
 
       ! Print locations of extreme value to log file
 
-      if ( l_global_smry_verbose .and. &
-         (global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val) ) then
+      if ( l_global_smry_verbose .and. global_smry_1d(ii)%count.gt.0 ) then
+      if ( global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val ) then
 
-        if (ii.eq.1) then
-         write(iulog,*)
-         write(iulog,'(a15,a8,a36,a20,a12, a10,a11,a2, a8, a11,2a9,a5,a10,a4,a7)') &
-                     'GLB_VERIF_SMRY:','nstep','Procedure','Field','Unit','Cmpr.', &
-                     'Threshold','','Count','Extreme',                             &
-                     'Lat','Lon','Lev','Chunk','Col','Fixer'
-        end if
-
-         write(iulog,'(a15,i8,a36,a20,a12, a10,e11.3,a2, i8, e11.3,2f9.2,i5,i10,i4,i7)') &
+         write(iulog,'(a15,i8,a36,a20,a12, a10,1pe11.3,a2, i8, 1pe11.3,2f9.2,i5,i10,i4,i7)') &
                      'GLB_VERIF_SMRY:',nstep, &
                      trim(domain_smry_1d(ii)%procedure_name),                 &
                      trim(domain_smry_1d(ii)%field_name),                     &
@@ -771,6 +777,7 @@ contains
                      domain_smry_1d(ii)%extreme_chnk,        &
                      domain_smry_1d(ii)%extreme_col,         &
                      domain_smry_1d(ii)%fixer
+      end if
       end if
 
     end do
