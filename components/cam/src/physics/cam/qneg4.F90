@@ -87,8 +87,8 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
       end if
    end do
 
-!--------------------------------------------
-! 2. Write out worst value if excess (START)
+!---------------------------------------------------
+! 2. Write out worst value if any excess <0  (START)
 !
    if (nptsexc.gt.0) then
       worst = 0._r8
@@ -111,14 +111,12 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
             ,', lon =', i5 &
            )
 
-! 2. Write out worst value if excess (END)
-!--------------------------------------------
+! 2. Write out worst value if any excess <0  (END)
+!--------------------------------------------------
 ! 3. For testing for now - intended to replace 2 later: get chunk summary (START) 
 
 
   call t_startf('get_chunk_smry')
-  ! write(iulog,'(4(a,i8))') "qneg4 calling get_chunk_smry, shapes: ncol = ",ncol,"nlat = ",shape(lat), & 
-  !                "nlon = ",shape(lon), "n chunk_smry = ",shape(chunk_smry)
   call get_chunk_smry('LH_FLX_EXCESS','QNEG4 from '//trim(subnam), &
                       ncol, excess(:ncol),lat(:ncol),lon(:ncol),chunk_smry(:),istat)
   call t_stopf('get_chunk_smry')

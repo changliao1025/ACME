@@ -1502,9 +1502,6 @@ end if ! l_tracer_aero
        ! Check if latent heat flux exceeds the total moisture content of the
        ! lowest model layer, thereby creating negative moisture.
 
-       write(iulog,'(5(a,i8))') &
-                      "tphysac calling qneg4, shapes: ncol = ",ncol,"nlat = ",shape(state%lat), &
-                      "nlon = ",shape(state%lon), "n chunk_smry = ",shape(chunk_smry)
        call qneg4('TPHYSAC '       ,lchnk               ,ncol  ,ztodt ,       &
                   state%q(:,pver,:),state%rpdel(:,pver) ,cam_in%shf ,         &
                   cam_in%lhf , cam_in%cflx, state%lat, state%lon, chunk_smry )

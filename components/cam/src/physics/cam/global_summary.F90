@@ -104,8 +104,7 @@ module global_summary
                                         ! (even when there are no
                                         ! values exeeding threshold)
 #else
- !logical :: l_print_always = .false. 
-  logical :: l_print_always = .true. 
+  logical :: l_print_always = .false. 
 #endif
 
   !-------------------------------------------------------------------
@@ -448,13 +447,6 @@ contains
     call get_smry_field_idx( fldname, procname, ifld )
     if (ifld.eq.INT_UNDEF) return
  
-   !write(iulog,*) 'shape(chunk_smry) = ',shape(chunk_smry), &
-   !               'current_number_of_smry_fields = ' , current_number_of_smry_fields
-
-   !write(iulog,'(4(a,i8))') "inside get_chunk_smry, shapes: ncol = ",ncol,"nlat = ",shape(lat), &
-   !               "nlon = ",shape(lon), "n chunk_smry = ",shape(chunk_smry)
-
-   !write(iulog,*) 'ifld = ', ifld, 'chunk_smry(ifld)%cmpr_type = ',chunk_smry(ifld)%cmpr_type
     !-----------------------------------------------------------------------
     ! Calculate the total number of columns with value exceeding threshold
     ! and identify location of the extremem value.
