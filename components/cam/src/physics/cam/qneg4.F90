@@ -1,6 +1,7 @@
 
 subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
-                  qbot    ,srfrpdel,shflx   ,lhflx   ,qflx    )
+                  qbot    ,srfrpdel,shflx   ,lhflx   ,qflx   ,&
+                  lat     ,lon     ,chunk_smry                )
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
@@ -22,6 +23,9 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
    use physconst,    only: gravit, latvap
    use constituents, only: qmin, pcnst
    use cam_logfile,  only: iulog
+   use global_summary,only: tp_stat_smry, get_chunk_smry
+   use global_summary,only: current_number_of_smry_fields
+   use perf_mod,      only: t_startf, t_stopf
 
    implicit none
 
@@ -42,6 +46,12 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
    real(r8), intent(inout) :: shflx(pcols)   ! Surface sensible heat flux (J/m2/s)
    real(r8), intent(inout) :: lhflx(pcols)   ! Surface latent   heat flux (J/m2/s)
    real(r8), intent(inout) :: qflx (pcols,pcnst)   ! surface water flux (kg/m^2/s)
+
+! for get_chunk_smry
+
+   real(r8), intent(in) :: lat(pcols)
+   real(r8), intent(in) :: lon(pcols)
+   type(tp_stat_smry),intent(inout) :: chunk_smry(current_number_of_smry_fields)
 !
 !---------------------------Local workspace-----------------------------
 !
@@ -52,6 +62,8 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
 !
    real(r8):: worst             ! biggest violator
    real(r8):: excess(pcols)     ! Excess downward sfc latent heat flux
+
+   integer :: istat             ! smry field ID
 !
 !-----------------------------------------------------------------------
 !
@@ -74,8 +86,9 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
          shflx(i) = shflx(i) + excess(i)*latvap
       end if
    end do
-!
-! Write out worst value if excess
+
+!--------------------------------------------
+! 2. Write out worst value if excess (START)
 !
    if (nptsexc.gt.0) then
       worst = 0._r8
@@ -89,7 +102,6 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
       write(iulog,9000) subnam,nptsexc,worst, lchnk, iw, get_lat_p(lchnk,iw),get_lon_p(lchnk,iw)
    end if
 !
-   return
 9000 format(' QNEG4 WARNING from ',a8 &
             ,' Max possible LH flx exceeded at ',i5,' points. ' &
             ,', Worst excess = ',1pe12.4 &
@@ -98,4 +110,21 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
             ,', same as indices lat =', i5 &
             ,', lon =', i5 &
            )
+
+! 2. Write out worst value if excess (END)
+!--------------------------------------------
+! 3. For testing for now - intended to replace 2 later: get chunk summary (START) 
+
+
+  call t_startf('get_chunk_smry')
+  ! write(iulog,'(4(a,i8))') "qneg4 calling get_chunk_smry, shapes: ncol = ",ncol,"nlat = ",shape(lat), & 
+  !                "nlon = ",shape(lon), "n chunk_smry = ",shape(chunk_smry)
+  call get_chunk_smry('LH_FLX_EXCESS','QNEG4 from '//trim(subnam), &
+                      ncol, excess(:ncol),lat(:ncol),lon(:ncol),chunk_smry(:),istat)
+  call t_stopf('get_chunk_smry')
+
+! 3. For testing for now - intended to replace 2 later: get chunk summary (END) 
+!--------------------------------------------
+
+   return
 end subroutine qneg4

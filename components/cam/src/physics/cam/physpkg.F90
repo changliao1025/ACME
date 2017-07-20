@@ -882,6 +882,10 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, chunk_smry_2d, domain_smry_
 
     end if
 
+    ! Add additional smry fields
+    !--------------------------------
+    call tphysbcac_smry_field_register()
+
     ! Initialize global statistics
     !--------------------------------
     call global_smry_init( chunk_smry_2d, domain_smry_1d, begchunk, endchunk )
@@ -1498,9 +1502,12 @@ end if ! l_tracer_aero
        ! Check if latent heat flux exceeds the total moisture content of the
        ! lowest model layer, thereby creating negative moisture.
 
-       call qneg4('TPHYSAC '       ,lchnk               ,ncol  ,ztodt ,               &
-            state%q(1,pver,1),state%rpdel(1,pver) ,cam_in%shf ,         &
-            cam_in%lhf , cam_in%cflx )
+       write(iulog,'(5(a,i8))') &
+                      "tphysac calling qneg4, shapes: ncol = ",ncol,"nlat = ",shape(state%lat), &
+                      "nlon = ",shape(state%lon), "n chunk_smry = ",shape(chunk_smry)
+       call qneg4('TPHYSAC '       ,lchnk               ,ncol  ,ztodt ,       &
+                  state%q(:,pver,:),state%rpdel(:,pver) ,cam_in%shf ,         &
+                  cam_in%lhf , cam_in%cflx, state%lat, state%lon, chunk_smry )
 
     end if 
 

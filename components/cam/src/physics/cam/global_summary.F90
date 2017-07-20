@@ -60,6 +60,8 @@ module global_summary
   !----------------
   integer, parameter :: INT_UNDEF = -999
   real(r8),parameter :: FLT_UNDEF = -999._r8
+
+  real(r8),parameter :: rad2deg = 180._r8/pi
   !----------------
   ! Data structure 
 
@@ -77,8 +79,8 @@ module global_summary
     ! extreme value and its location
 
     real(r8) :: extreme_val
-    real(r8) :: extreme_lat  = FLT_UNDEF
-    real(r8) :: extreme_lon  = FLT_UNDEF
+    real(r8) :: extreme_lat  = FLT_UNDEF/rad2deg
+    real(r8) :: extreme_lon  = FLT_UNDEF/rad2deg
     integer  :: extreme_chnk = INT_UNDEF
     integer  :: extreme_col  = INT_UNDEF
     integer  :: extreme_lev  = INT_UNDEF
@@ -92,7 +94,6 @@ module global_summary
   integer                 :: n_smry_fields_mpimin = 0   ! number of fields needing mpimin for mpi_allreduce
 
   character(len=longchar) :: msg 
-  real(r8),parameter      :: rad2deg = 180._r8/pi
   logical                 :: l_smry_arrays_allocated = .false.
 
   logical                 :: l_global_smry_verbose = .true.
@@ -103,7 +104,8 @@ module global_summary
                                         ! (even when there are no
                                         ! values exeeding threshold)
 #else
-  logical :: l_print_always = .false. 
+ !logical :: l_print_always = .false. 
+  logical :: l_print_always = .true. 
 #endif
 
   !-------------------------------------------------------------------
@@ -445,7 +447,14 @@ contains
     !-------------------------------------------------------------------------
     call get_smry_field_idx( fldname, procname, ifld )
     if (ifld.eq.INT_UNDEF) return
-  
+ 
+   !write(iulog,*) 'shape(chunk_smry) = ',shape(chunk_smry), &
+   !               'current_number_of_smry_fields = ' , current_number_of_smry_fields
+
+   !write(iulog,'(4(a,i8))') "inside get_chunk_smry, shapes: ncol = ",ncol,"nlat = ",shape(lat), &
+   !               "nlon = ",shape(lon), "n chunk_smry = ",shape(chunk_smry)
+
+   !write(iulog,*) 'ifld = ', ifld, 'chunk_smry(ifld)%cmpr_type = ',chunk_smry(ifld)%cmpr_type
     !-----------------------------------------------------------------------
     ! Calculate the total number of columns with value exceeding threshold
     ! and identify location of the extremem value.
@@ -489,7 +498,7 @@ contains
     chunk_smry(ifld)%extreme_col  =       idx(1)
     chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
     chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
-  
+
     ! Clipping
 
     if (chunk_smry(ifld)%fixer.eq.CLIPPING) then
