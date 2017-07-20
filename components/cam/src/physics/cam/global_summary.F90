@@ -96,8 +96,6 @@ module global_summary
   character(len=longchar) :: msg 
   logical                 :: l_smry_arrays_allocated = .false.
 
-  logical                 :: l_global_smry_verbose = .false.
-
 #ifdef UNIT_TEST
   logical :: l_print_always = .true.    ! always print message in log file 
                                         ! (even when there are no
@@ -590,7 +588,7 @@ contains
   !   then collect information from all MPI processes and get the global summary.
   !   This subroutine is meant to handle all fields on the summary list.
   !------------------------------------------------------------------------------------------
-  subroutine get_global_smry( chunk_smry_2d, domain_smry_1d, nstep)
+  subroutine get_global_smry( chunk_smry_2d, domain_smry_1d, nstep, l_global_smry_verbose)
 
 #ifdef SPMD
     use mpishorthand, only: mpir8, mpiint, mpicom
@@ -601,7 +599,8 @@ contains
 
     type(tp_stat_smry)  ::  chunk_smry_2d(:,:)  ! shape: (nchunk,nfld)
     type(tp_stat_smry)  :: domain_smry_1d(:)    ! shape: (nfld)
-    integer,intent(in)   :: nstep               ! model time step
+    integer,intent(in)  :: nstep                ! model time step
+    logical,intent(in)  :: l_global_smry_verbose  ! print out location of extreme values
 
     integer :: ii
 

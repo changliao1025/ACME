@@ -1146,6 +1146,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, chunk_smry_2d, domain_smry_1d
     use check_energy,   only: ieflx_gmean 
     use check_energy,   only: check_ieflx_fix 
     use phys_control,   only: ieflx_opt !!l_ieflx_fix
+    use phys_control,   only: l_global_smry_verbose
     !
     ! Input arguments
     !
@@ -1243,7 +1244,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, chunk_smry_2d, domain_smry_1d
 #endif
 
     call t_startf('get_global_smry')
-    call get_global_smry( chunk_smry_2d, domain_smry_1d, nstep)
+    call get_global_smry( chunk_smry_2d, domain_smry_1d, nstep, l_global_smry_verbose)
     call t_stopf('get_global_smry')
 
     call t_startf ('carma_accumulate_stats')
@@ -1420,6 +1421,8 @@ subroutine tphysac (ztodt,   cam_in,  &
     logical :: l_gw_drag
     logical :: l_ac_energy_chk
 
+    logical :: l_old_qneg4_messages
+
     !
     !-----------------------------------------------------------------------
     !
@@ -1435,6 +1438,7 @@ subroutine tphysac (ztodt,   cam_in,  &
                       ,l_rayleigh_out         = l_rayleigh         &
                       ,l_gw_drag_out          = l_gw_drag          &
                       ,l_ac_energy_chk_out    = l_ac_energy_chk    &
+                    ,l_old_qneg4_messages_out = l_old_qneg4_messages &
                      )
 
     ! Adjust the surface fluxes to reduce instabilities in near sfc layer
@@ -1504,7 +1508,8 @@ end if ! l_tracer_aero
 
        call qneg4('TPHYSAC '       ,lchnk               ,ncol  ,ztodt ,       &
                   state%q(:,pver,:),state%rpdel(:,pver) ,cam_in%shf ,         &
-                  cam_in%lhf , cam_in%cflx, state%lat, state%lon, chunk_smry )
+                  cam_in%lhf , cam_in%cflx, state%lat, state%lon,             &
+                  chunk_smry, l_old_qneg4_messages )
 
     end if 
 

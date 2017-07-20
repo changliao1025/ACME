@@ -1128,6 +1128,19 @@ Whether or not to fix ieflx
 Default: .false.
 </entry>
 
+<entry id="l_global_smry_verbose" type="logical" category="diagnostics"
+       group="phys_ctl_nl" valid_values="" >
+Write out location (lat/lon/lev) of extreme values 
+as part of global summary.
+Default: .false.
+</entry>
+
+<entry id="l_old_qneg4_messages" type="logical" category="diagnostics"
+       group="phys_ctl_nl" valid_values="" >
+Let QNEG4 write out worst negative excess flux of each grid chunk. 
+Default: .false.
+</entry>
+
 <!-- Gravity Wave Drag -->
 
 <entry id="use_gw_oro" type="logical" category="gw_drag"

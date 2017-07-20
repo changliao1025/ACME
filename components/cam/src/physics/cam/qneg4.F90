@@ -1,7 +1,8 @@
 
 subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
                   qbot    ,srfrpdel,shflx   ,lhflx   ,qflx   ,&
-                  lat     ,lon     ,chunk_smry                )
+                  lat     ,lon     ,                          &
+                  chunk_smry, l_old_qneg4_messages            )
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
@@ -52,6 +53,8 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
    real(r8), intent(in) :: lat(pcols)
    real(r8), intent(in) :: lon(pcols)
    type(tp_stat_smry),intent(inout) :: chunk_smry(current_number_of_smry_fields)
+
+   logical, intent(in) :: l_old_qneg4_messages
 !
 !---------------------------Local workspace-----------------------------
 !
@@ -87,10 +90,10 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
       end if
    end do
 
-!---------------------------------------------------
-! 2. Write out worst value if any excess <0  (START)
+!-------------------------------------------
+! 2. Write out worst value if any excess <0 
 !
-   if (nptsexc.gt.0) then
+   if (nptsexc.gt.0 .and. l_old_qneg4_messages) then
       worst = 0._r8
       do ii=1,nptsexc
          i = indxexc(ii)
@@ -110,19 +113,13 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
             ,', same as indices lat =', i5 &
             ,', lon =', i5 &
            )
-
-! 2. Write out worst value if any excess <0  (END)
-!--------------------------------------------------
-! 3. For testing for now - intended to replace 2 later: get chunk summary (START) 
-
+!---------------------------------------------------------------
+! 3. An alternative to 2: get chunk summary for concise message 
 
   call t_startf('get_chunk_smry')
   call get_chunk_smry('LH_FLX_EXCESS','QNEG4 from '//trim(subnam), &
                       ncol, excess(:ncol),lat(:ncol),lon(:ncol),chunk_smry(:),istat)
   call t_stopf('get_chunk_smry')
-
-! 3. For testing for now - intended to replace 2 later: get chunk summary (END) 
-!--------------------------------------------
-
+!---------------------------------------------------------
    return
 end subroutine qneg4

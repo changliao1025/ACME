@@ -14,6 +14,8 @@ module test_core
   integer :: ncol = PCOLS-1  ! deliberately making ncol and pcols different to make sure 
                              ! the code works in such situations
 
+  logical :: l_global_smry_verbose = .true.
+
 contains
 
 !@before
@@ -194,7 +196,7 @@ contains
     write(iulog,*) '  entire domain on this CPU'
     write(iulog,*) '-----------------------------'
 
-    call get_global_smry( chunk_smry, domain_smry, nstep )
+    call get_global_smry( chunk_smry, domain_smry, nstep, l_global_smry_verbose )
 
     !----------------------------------
     ! Check if the results are correct
