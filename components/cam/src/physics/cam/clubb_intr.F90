@@ -503,10 +503,12 @@ end subroutine clubb_init_cnst
     !  These are only needed if we're using a passive scalar
     use array_index,            only: iisclr_rt, iisclr_thl, iisclr_CO2, &    ! [kg/kg]/[K]/[1e6 mol/mol]
                                       iiedsclr_rt, iiedsclr_thl, iiedsclr_CO2 ! "    "
-    use constituents,           only: cnst_get_ind
+    use constituents,           only: cnst_get_ind, qmin, cnst_name
     use phys_control,           only: phys_getopts
+    use global_summary,         only: add_smry_field, SMALLER_THAN, CLIPPING
 
 #endif
+
 
     use physics_buffer,         only: pbuf_get_index, pbuf_set_field, physics_buffer_desc
     implicit none
@@ -585,6 +587,14 @@ end subroutine clubb_init_cnst
        lq(ixnumliq) = .false.
        edsclr_dim = edsclr_dim-1
     endif
+
+    ! Register fields to be monitored for clubb_surface.
+    ! In that subroutine lq is set to .true. for all tracers, so we also
+    ! register all of them here.
+
+    do m = 1,pcnst
+       call add_smry_field(trim(cnst_name(m)),'clubb_surface','(mr)',SMALLER_THAN,qmin(m)) !,fixer=CLIPPING)
+    end do
 
     ! ----------------------------------------------------------------- !
     ! Set the debug level.  Level 2 has additional computational expense since

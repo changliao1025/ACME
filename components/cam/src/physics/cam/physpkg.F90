@@ -1564,7 +1564,7 @@ if (l_vdiff) then
        call clubb_surface ( state, ptend, ztodt, cam_in, surfric, obklen)
        
        ! Update surface flux constituents 
-       call physics_update(state, ptend, ztodt, tend)
+       call physics_update(state, ptend, ztodt, tend, chunk_smry)
 
     else
 
