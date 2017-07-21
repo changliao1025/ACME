@@ -1247,7 +1247,7 @@ end subroutine clubb_init_cnst
  !  Initialize physics tendency arrays, copy the state to state1 array to use in this routine
 
    if (.not. micro_do_icesupersat) then    
-     call physics_ptend_init(ptend_loc,state%psetcols, 'clubb', ls=.true., lu=.true., lv=.true., lq=lq)
+     call physics_ptend_init(ptend_loc,state%psetcols, 'clubb_xxx', ls=.true., lu=.true., lv=.true., lq=lq)
    endif
 
    call physics_state_copy(state,state1)
@@ -1255,7 +1255,7 @@ end subroutine clubb_init_cnst
    if (micro_do_icesupersat) then
      naai_idx      = pbuf_get_index('NAAI')
      call pbuf_get_field(pbuf, naai_idx, naai)
-     call physics_ptend_init(ptend_all, state%psetcols, 'clubb')
+     call physics_ptend_init(ptend_all, state%psetcols, 'clubb_all')
    endif
 
    !  Determine number of columns and which chunk computation is to be performed on
@@ -1528,7 +1528,7 @@ end subroutine clubb_init_cnst
     endif
    
    if (micro_do_icesupersat) then
-     call physics_ptend_init(ptend_loc,state%psetcols, 'clubb', ls=.true., lu=.true., lv=.true., lq=lq)
+     call physics_ptend_init(ptend_loc,state%psetcols, 'clubb_core', ls=.true., lu=.true., lv=.true., lq=lq)
    endif
 
    ! ------------------------------------------------- !
@@ -2122,7 +2122,7 @@ end subroutine clubb_init_cnst
 
    !  Update physics tendencies     
    if (.not. micro_do_icesupersat) then
-      call physics_ptend_init(ptend_all, state%psetcols, 'clubb')
+      call physics_ptend_init(ptend_all, state%psetcols, 'clubb_all')
    endif
    call physics_ptend_sum(ptend_loc,ptend_all,ncol)
    call physics_update(state1,ptend_loc,hdtime)
@@ -2151,7 +2151,7 @@ end subroutine clubb_init_cnst
    lqice(ixnumliq) = .true.
    lqice(ixnumice) = .true.
     
-   call physics_ptend_init(ptend_loc,state%psetcols, 'clubb', ls=.true., lq=lqice)
+   call physics_ptend_init(ptend_loc,state%psetcols, 'clubb_DpCu_detr', ls=.true., lq=lqice)
    
    call t_startf('ice_cloud_detrain_diag')
    do k=1,pver
@@ -2597,7 +2597,7 @@ end subroutine clubb_init_cnst
     call cnst_get_ind('Q',ixq)
     
     lq(:) = .TRUE.
-    call physics_ptend_init(ptend, state%psetcols, 'clubb', lq=lq)
+    call physics_ptend_init(ptend, state%psetcols, 'clubb_surface', lq=lq)
     
     ncol = state%ncol
     
