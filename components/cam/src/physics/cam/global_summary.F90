@@ -203,11 +203,13 @@ contains
   !--------------------------------------------------------------------------------
   subroutine global_smry_init( chunk_smry_2d, domain_smry_1d, begchunk, endchunk )
 
+    use spmd_utils,   only: masterproc
+
     type(tp_stat_smry), pointer ::  chunk_smry_2d(:,:)
     type(tp_stat_smry), pointer :: domain_smry_1d(:)
     integer, intent(in) :: begchunk, endchunk
 
-    integer :: ierr, ichnk
+    integer :: ierr, ichnk, ifld
 
     ! Sanity check
 
@@ -285,6 +287,32 @@ contains
     ! Set flag for sanity check later
 
     l_smry_arrays_allocated = .true.
+
+    ! Send message to log file
+
+    if (masterproc) then
+       write(iulog,*)'****************************************************************************'
+       write(iulog,*)'GLB_VERIF_SMRY: Initialization of global_summary done.'
+       write(iulog,*)'GLB_VERIF_SMRY: current_number_of_smry_fields = ',current_number_of_smry_fields 
+       write(iulog,*)'GLB_VERIF_SMRY: '
+
+       write(iulog,'(a16,a8, a36,a20,a12, a10,a11,a7)')  &
+                     'GLB_VERIF_SMRY:','Index', 'Procedure','Field','Unit', 'Compr.','Threshold','Fixer'
+
+       do ifld = 1,current_number_of_smry_fields
+
+          write(iulog,'(a16,i8, a36,a20,a12, i10,e11.3,i7)')                &
+                      'GLB_VERIF_SMRY:',ifld,                               &
+                      trim(domain_smry_1d(ifld)%procedure_name),            &
+                      trim(domain_smry_1d(ifld)%field_name),                &
+                      trim(domain_smry_1d(ifld)%field_unit),                &
+                      domain_smry_1d(ifld)%cmpr_type,                       &
+                      domain_smry_1d(ifld)%threshold, &
+                      domain_smry_1d(ifld)%fixer 
+       end do
+
+       write(iulog,*)'****************************************************************************'
+    end if
 
   end subroutine global_smry_init
 
