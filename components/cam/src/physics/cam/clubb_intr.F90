@@ -505,7 +505,7 @@ end subroutine clubb_init_cnst
                                       iiedsclr_rt, iiedsclr_thl, iiedsclr_CO2 ! "    "
     use constituents,           only: cnst_get_ind, qmin, cnst_name
     use phys_control,           only: phys_getopts
-    use global_summary,         only: add_smry_field, SMALLER_THAN, CLIPPING
+    use global_summary,         only: add_smry_field, SMALLER_THAN, CLIPPING, NO_FIX
 
 #endif
 
@@ -542,6 +542,10 @@ end subroutine clubb_init_cnst
     real(r8)  :: zt_g(pverp)                        ! Height dummy array
     real(r8)  :: zi_g(pverp)                        ! Height dummy array
 
+    integer :: cld_macmic_num_steps  ! # of substeps used for cloud mac/microphysics
+    integer :: macmic_it             ! substep index
+
+    character(len=32) :: routine_name
 
     !----- Begin Code -----
 
@@ -555,6 +559,7 @@ end subroutine clubb_init_cnst
     call phys_getopts(prog_modal_aero_out=prog_modal_aero, &
                       history_amwg_out=history_amwg, &
                       history_clubb_out=history_clubb,&
+                      cld_macmic_num_steps_out = cld_macmic_num_steps, &
                       liqcf_fix_out   = liqcf_fix)
 
     !  Select variables to apply tendencies back to CAM
@@ -588,12 +593,31 @@ end subroutine clubb_init_cnst
        edsclr_dim = edsclr_dim-1
     endif
 
-    ! Register fields to be monitored for clubb_surface.
-    ! In that subroutine lq is set to .true. for all tracers, so we also
-    ! register all of them here.
+    ! ------------------------------------------------------------------------ !
+    ! Register tracer fields to be monitored for clubb_tend_cam. Note:
+    !  - For now we are using the global_summary module for diagnostics only;
+    !    clipping of unphysical values is still done by QNEG3. Therefore 
+    !    in the loop below, fixer is set to NO_FIX.
+    ! ------------------------------------------------------------------------ !
+    do macmic_it = 1,cld_macmic_num_steps
+      write(routine_name,'(a,i2.2)') 'clubb_macmic_substep_',macmic_it
 
+      do m = 1,pcnst
+        if (lq(m)) &
+        call add_smry_field(trim(cnst_name(m)), trim(routine_name), '(mr)', &
+                            SMALLER_THAN, qmin(m), fixer=NO_FIX)
+      end do
+    end do
+    ! ------------------------------------------------------------------------ !
+    ! Register tracer fields to be monitored for clubb_surface. Note:
+    !  - In that subroutine, lq is set to .true. for all tracers, so we also
+    !    register all of them here.
+    !  - For now we are using the global_summary module for diagnostics only;
+    !    clipping of unphysical values is still done by QNEG3. Therefore 
+    !    in the loop below, fixer is set to NO_FIX.
+    ! ------------------------------------------------------------------------ !
     do m = 1,pcnst
-       call add_smry_field(trim(cnst_name(m)),'clubb_surface','(mr)',SMALLER_THAN,qmin(m)) !,fixer=CLIPPING)
+       call add_smry_field(trim(cnst_name(m)),'clubb_surface','(mr)',SMALLER_THAN,qmin(m),fixer=NO_FIX)
     end do
 
     ! ----------------------------------------------------------------- !
@@ -989,6 +1013,8 @@ end subroutine clubb_init_cnst
 
 #ifdef CLUBB_SGS
 
+   character(len=32) :: routine_name
+
    type(physics_state) :: state1                ! Local copy of state variable
    type(physics_ptend) :: ptend_loc             ! Local tendency from processes, added up to return as ptend_all
    
@@ -1237,6 +1263,9 @@ end subroutine clubb_init_cnst
    !-----------------------------------------------------------------------------------------------!
 
    call t_startf('clubb_tend_cam_init')
+
+   write(routine_name,'(a,i2.2)') 'clubb_macmic_substep_',macmic_it
+
    frac_limit = 0.01_r8
    ic_limit   = 1.e-12_r8
 
@@ -1265,7 +1294,7 @@ end subroutine clubb_init_cnst
    if (micro_do_icesupersat) then
      naai_idx      = pbuf_get_index('NAAI')
      call pbuf_get_field(pbuf, naai_idx, naai)
-     call physics_ptend_init(ptend_all, state%psetcols, 'clubb_all')
+     call physics_ptend_init(ptend_all, state%psetcols, trim(routine_name))
    endif
 
    !  Determine number of columns and which chunk computation is to be performed on
@@ -2132,7 +2161,7 @@ end subroutine clubb_init_cnst
 
    !  Update physics tendencies     
    if (.not. micro_do_icesupersat) then
-      call physics_ptend_init(ptend_all, state%psetcols, 'clubb_all')
+      call physics_ptend_init(ptend_all, state%psetcols, trim(routine_name))
    endif
    call physics_ptend_sum(ptend_loc,ptend_all,ncol)
    call physics_update(state1,ptend_loc,hdtime)
