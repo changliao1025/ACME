@@ -2468,7 +2468,7 @@ end if
 
 
           if (use_subcol_microp) then
-             call microp_driver_tend(state_sc, ptend_sc, cld_macmic_ztodt, pbuf)
+             call microp_driver_tend(state_sc, ptend_sc, cld_macmic_ztodt, pbuf, chunk_smry)
 
              ! Average the sub-column ptend for use in gridded update - will not contain ptend_aero
              call subcol_ptend_avg(ptend_sc, state_sc%ngrdcol, lchnk, ptend)
@@ -2491,7 +2491,7 @@ end if
              call physics_tend_dealloc(tend_sc)
              call physics_ptend_dealloc(ptend_sc)
           else
-             call microp_driver_tend(state, ptend, cld_macmic_ztodt, pbuf)
+             call microp_driver_tend(state, ptend, cld_macmic_ztodt, pbuf, chunk_smry)
           end if
           ! combine aero and micro tendencies for the grid
           if (.not. micro_do_icesupersat) then
@@ -2503,7 +2503,7 @@ end if
           ! (see above note for macrophysics).
           call physics_ptend_scale(ptend, 1._r8/cld_macmic_num_steps, ncol)
 
-          call physics_update (state, ptend, ztodt, tend)
+          call physics_update (state, ptend, ztodt, tend, chunk_smry)
           call check_energy_chng(state, tend, "microp_tend", nstep, ztodt, &
                zero, prec_str(:ncol)/cld_macmic_num_steps, &
                snow_str(:ncol)/cld_macmic_num_steps, zero, &
