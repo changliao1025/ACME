@@ -2230,7 +2230,7 @@ end if
          dsubcld, jt, maxg, ideep, lengath) 
     call t_stopf('convect_deep_tend')
 
-    call physics_update(state, ptend, ztodt, tend)
+    call physics_update(state, ptend, ztodt, tend, chunk_smry)
 
     call pbuf_get_field(pbuf, prec_dp_idx, prec_dp )
     call pbuf_get_field(pbuf, snow_dp_idx, snow_dp )

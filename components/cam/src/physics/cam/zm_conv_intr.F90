@@ -118,7 +118,8 @@ subroutine zm_conv_init(pref_edge)
   use phys_control,   only: phys_deepconv_pbl, phys_getopts, cam_physpkg_is
   use physics_buffer, only: pbuf_get_index
   use rad_constituents, only: rad_cnst_get_info 
-  use global_summary,   only: add_smry_field, ABS_GREATER_EQ
+  use constituents,     only: qmin, pcnst, cnst_name, cnst_is_convtran1
+  use global_summary,   only: add_smry_field, ABS_GREATER_EQ, SMALLER_THAN, NO_FIX
   use physconst,        only: rounding_tol, water_cnsv_tol
 
   implicit none
@@ -133,13 +134,22 @@ subroutine zm_conv_init(pref_edge)
                             ! temperature, water vapor, cloud ice and cloud
                             ! liquid budgets.
   integer :: history_budget_histfile_num ! output history file number for budget fields
-  integer :: nmodes 
+  integer :: nmodes, m
 
+  logical :: lq(pcnst)
 ! 
 ! Register fields for global summary 
 !
   call add_smry_field('TOT_ENERGY_REL_ERR','convect_deep(check_energy_chng)','-',ABS_GREATER_EQ,rounding_tol)
   call add_smry_field('TOT_WATER_REL_ERR', 'convect_deep(check_energy_chng)','-',ABS_GREATER_EQ,water_cnsv_tol)
+
+  lq(:)  = .FALSE.
+  lq(1)  = .TRUE.
+  lq(2:) = cnst_is_convtran1(2:)
+  do m = 1,pcnst
+    if (lq(m)) &
+    call add_smry_field(cnst_name(m),'zm_conv_tend','(mr)',SMALLER_THAN, qmin(m), fixer=NO_FIX)
+  end do
 ! 
 ! Register fields with the output buffer
 !
