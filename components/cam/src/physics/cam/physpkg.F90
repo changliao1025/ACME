@@ -645,7 +645,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, chunk_smry_2d, domain_smry_
     !-----------------------------------------------------------------------
 
     use physics_buffer,     only: physics_buffer_desc, pbuf_initialize, pbuf_get_index
-    use glb_verif_smry,     only: tp_stat_smry, global_smry_init
+    use glb_verif_smry,     only: tp_stat_smry, global_smry_init, add_smry_field, SMALLER_THAN
     use physconst,          only: rair, cpair, gravit, stebol, tmelt, &
                                   latvap, latice, rh2o, rhoh2o, pstd, zvir, &
                                   karman, rhodair, physconst_init 
@@ -882,9 +882,9 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, chunk_smry_2d, domain_smry_
 
     end if
 
-    ! Add additional smry fields
+    ! Add additional smry field(s)
     !--------------------------------
-    call tphysbcac_smry_field_register()
+    call add_smry_field('LHFLX_EXCESS','qneg4','kg/m2/s',SMALLER_THAN,0._r8)
 
     ! Initialize global statistics
     !--------------------------------
