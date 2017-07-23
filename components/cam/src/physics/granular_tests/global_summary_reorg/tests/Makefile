@@ -64,7 +64,7 @@ OBJ2 = \
 	physconst.o  \
 	constituents.o  \
 	physics_types.o  \
-        global_summary.o \
+        glb_verif_smry.o \
 	ascii_io.o \
 	physpkg.o  \
         test_core.o 

@@ -155,7 +155,7 @@ end subroutine microp_driver_init
 
 subroutine microp_driver_tend(state, ptend, dtime, pbuf, chunk_smry)
 
-   use global_summary, only: tp_stat_smry
+   use glb_verif_smry, only: tp_stat_smry
 
    ! Call the microphysics parameterization run methods.
 

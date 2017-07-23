@@ -645,7 +645,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, chunk_smry_2d, domain_smry_
     !-----------------------------------------------------------------------
 
     use physics_buffer,     only: physics_buffer_desc, pbuf_initialize, pbuf_get_index
-    use global_summary,     only: tp_stat_smry, global_smry_init
+    use glb_verif_smry,     only: tp_stat_smry, global_smry_init
     use physconst,          only: rair, cpair, gravit, stebol, tmelt, &
                                   latvap, latice, rh2o, rhoh2o, pstd, zvir, &
                                   karman, rhodair, physconst_init 
@@ -911,7 +911,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, chunk_smry_2d, pbuf2d, cam_in
     use cam_diagnostics,only: diag_allocate, diag_physvar_ic
     use check_energy,   only: check_energy_gmean
 
-    use global_summary,         only: tp_stat_smry, nfld=>current_number_of_smry_fields
+    use glb_verif_smry,         only: tp_stat_smry, nfld=>current_number_of_smry_fields
     use physics_buffer,         only: physics_buffer_desc, pbuf_get_chunk, pbuf_allocate
 #if (defined BFB_CAM_SCAM_IOP )
     use cam_history,    only: outfld
@@ -1129,8 +1129,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, chunk_smry_2d, domain_smry_1d
     ! 
     ! Modified by Kai Zhang 2017-03: add IEFLX fixer treatment 
     !-----------------------------------------------------------------------
-    use global_summary,      only: tp_stat_smry, nfld=>current_number_of_smry_fields
-    use global_summary,      only: get_global_smry
+    use glb_verif_smry,      only: tp_stat_smry, nfld=>current_number_of_smry_fields, get_global_smry
     use physics_buffer,         only: physics_buffer_desc, pbuf_get_chunk, pbuf_deallocate, pbuf_update_tim_idx
     use mo_lightning,   only: lightning_no_prod
 
@@ -1313,7 +1312,7 @@ subroutine tphysac (ztodt,   cam_in,  &
     ! Author: CCM1, CMS Contact: J. Truesdale
     ! 
     !-----------------------------------------------------------------------
-    use global_summary, only: tp_stat_smry
+    use glb_verif_smry, only: tp_stat_smry
     use physics_buffer, only: physics_buffer_desc, pbuf_set_field, pbuf_get_index, pbuf_get_field, pbuf_old_tim_idx
     use shr_kind_mod,       only: r8 => shr_kind_r8
     use chemistry,          only: chem_is_active, chem_timestep_tend, chem_emissions
@@ -1795,7 +1794,7 @@ subroutine tphysbc (ztodt,               &
     use physics_buffer,          only : col_type_subcol, dyn_time_lvls
     use shr_kind_mod,    only: r8 => shr_kind_r8
 
-    use global_summary,  only: tp_stat_smry
+    use glb_verif_smry,  only: tp_stat_smry
 
     use stratiform,      only: stratiform_tend
     use microp_driver,   only: microp_driver_tend

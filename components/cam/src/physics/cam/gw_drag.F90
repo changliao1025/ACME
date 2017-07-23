@@ -192,7 +192,7 @@ subroutine gw_init()
   use interpolate_data, only: lininterp
   use phys_control,     only: phys_getopts
   use physics_buffer,   only: pbuf_get_index
-  use global_summary,   only: add_smry_field, ABS_GREATER_EQ
+  use glb_verif_smry,   only: add_smry_field, ABS_GREATER_EQ
 
   use ref_pres,   only: pref_edge
   use physconst,  only: gravit, rair, rounding_tol

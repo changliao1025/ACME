@@ -1,17 +1,17 @@
-module global_summary
+module glb_verif_smry
 !------------------------------------------------------------------------------------
 ! Description:
 
 ! This module provides utilities for getting statistical summaries for global fields.
-! For example, the module can be used to identify negative values in a tracer 
-! mixing ratio, or energy conservation errors exceeding a pre-defined threshold.
+! The module can be used to identify, for example, negative values in tracer 
+! mixing ratios, or energy conservation errors exceeding a certain threshold.
 !
 ! The basic idea is to build a list of fields for which such summaries will be provided 
-! during  model integration. For each field, first identify the violation within each 
+! during  model integration. For each field, first identify violations within each 
 ! chunk of the physics grid; get a total count, and note down the extreme value and 
 ! its location (chunk/column index, lat, lon, and vertical level index if applicable).
-! Then the total count and the extreme among all chunks on a single  MPI process ("domain")
-! are obtained. lastly, the domain summaries are collected  by the master process to 
+! Then the total count and the extreme among all chunks on a single MPI process ("domain")
+! are obtained. Lastly, the domain summaries are collected  by the master process to 
 ! provide a global summary.
 ! 
 ! Each "field" on the list is identified by a field name and a procedure name
@@ -22,7 +22,10 @@ module global_summary
 !
 ! History:
 !
-! First version by Hui Wan (PNNL, 2017-05)
+! First  version by Hui Wan (PNNL, 2017-05). 
+!  - MPI_gather was used for global communication.
+! Second version by Hui Wan (PNNL, 2017-05). 
+!  - Replace MPI_gather by MPI_allreduce;
 !------------------------------------------------------------------------------------
 
   use shr_kind_mod,   only: r8=>SHR_KIND_R8
@@ -41,7 +44,7 @@ module global_summary
   public get_chunk_smry
   public get_global_smry
 
-  character(len=shortchar),private,parameter :: THIS_MODULE = 'global_summary'
+  character(len=shortchar),private,parameter :: THIS_MODULE = 'glb_verif_smry'
 
   !----------------------------------------------
   ! Types of comparison supported by this module
@@ -292,16 +295,16 @@ contains
 
     if (masterproc) then
        write(iulog,*)'****************************************************************************'
-       write(iulog,*)'GLB_VERIF_SMRY: Initialization of global_summary done.'
+       write(iulog,*)'GLB_VERIF_SMRY: Initialization of glb_verif_smry done.'
        write(iulog,*)'GLB_VERIF_SMRY: current_number_of_smry_fields = ',current_number_of_smry_fields 
        write(iulog,*)'GLB_VERIF_SMRY: '
 
-       write(iulog,'(a16,a8, a36,a20,a12, a10,a11,a7)')  &
+       write(iulog,'(a19,a8, a36,a20,a12, a10,a11,a7)')  &
                      'GLB_VERIF_SMRY:','Index', 'Procedure','Field','Unit', 'Compr.','Threshold','Fixer'
 
        do ifld = 1,current_number_of_smry_fields
 
-          write(iulog,'(a16,i8, a36,a20,a12, i10,e11.3,i7)')                &
+          write(iulog,'(a19,i8, a36,a20,a12, i10,e11.3,i7)')                &
                       'GLB_VERIF_SMRY:',ifld,                               &
                       trim(domain_smry_1d(ifld)%procedure_name),            &
                       trim(domain_smry_1d(ifld)%field_name),                &
@@ -740,8 +743,8 @@ contains
         any(global_smry_1d(1:current_number_of_smry_fields)%count.gt.0) ) then
 
        write(iulog,*)
-       write(iulog,'(a20,a8, a36,a20,a12, a10,a11,a2,a8, a13,a7, a9,a9,a5,a10,a5)')  &
-                   'GLB_VERIF_SMRY(_VB):','nstep',  &
+       write(iulog,'(a19,a8, a36,a20,a12, a10,a11,a2,a8, a13,a7, a9,a9,a5,a10,a5)')  &
+                   'GLB_VERIF_SMRY:','nstep',  &
                    'Procedure','Field','Unit',      &
                    'Cmpr.','Threshold','','Count',  &
                    'Extreme', 'Fixer',              &
@@ -771,7 +774,7 @@ contains
 
       if (masterproc .and. global_smry_1d(ii)%count.gt.0 ) then
 
-        write(iulog,'(a20,i8, a36,a20,a12, a10,e11.3,a2, i8, e13.3,i7)') &
+        write(iulog,'(a19,i8, a36,a20,a12, a10,e11.3,a2, i8, e13.3,i7)') &
                     'GLB_VERIF_SMRY:',nstep, &
                     trim(global_smry_1d(ii)%procedure_name),         &
                     trim(global_smry_1d(ii)%field_name),             &
@@ -788,7 +791,7 @@ contains
       if ( l_global_smry_verbose .and. global_smry_1d(ii)%count.gt.0 ) then
       if ( global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val ) then
 
-         write(iulog,'(a20,i8, a36,a20,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
+         write(iulog,'(a19,i8, a36,a20,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
                      'GLB_VERIF_SMRY_VB:',nstep, &
                      trim(domain_smry_1d(ii)%procedure_name),                 &
                      trim(domain_smry_1d(ii)%field_name),                     &
@@ -809,4 +812,4 @@ contains
 
   end subroutine get_global_smry
 
-end module global_summary
+end module glb_verif_smry

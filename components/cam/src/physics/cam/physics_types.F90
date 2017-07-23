@@ -211,7 +211,7 @@ contains
     use phys_control, only: phys_getopts
     use physconst,    only: physconst_update ! Routine which updates physconst variables (WACCM-X)
     use ppgrid,       only: begchunk, endchunk
-    use global_summary,only: tp_stat_smry, get_chunk_smry
+    use glb_verif_smry,only: tp_stat_smry, get_chunk_smry
 
 !------------------------------Arguments--------------------------------
     type(physics_ptend), intent(inout)  :: ptend   ! Parameterization tendencies
@@ -348,14 +348,16 @@ contains
               m /= ixnumrain .and.  m /= ixnumsnow ) then
              name = trim(ptend%name) // '/' // trim(cnst_name(m))
 
-             !HuiWan: test global_summary module +++
+             !HuiWan 2017-07: Use module glb_verif_smry to provide consise summary for negative values +++
+             !HuiWan 2017-07: For now this module is used only for diagnostics. Later we will consider
+             !                replacing qneg3.
              if (present(chunk_smry)) then
-             call t_startf('get_chunk_smry')
-             call get_chunk_smry( trim(cnst_name(m)),trim(ptend%name), ncol, pver, state%q(:ncol,:,m), &
-                                  state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
-             call t_stopf('get_chunk_smry')
+                call t_startf('get_chunk_smry')
+                call get_chunk_smry( trim(cnst_name(m)),trim(ptend%name), ncol, pver, state%q(:ncol,:,m), &
+                                     state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
+                call t_stopf('get_chunk_smry')
              end if
-             !HuiWan: test global_summary module ===
+             !HuiWan:2017-07 ===
 
 !!== KZ_WATCON 
              if(use_mass_borrower) then 

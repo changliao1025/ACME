@@ -32,7 +32,7 @@ ln -s $ACME_src_root/components/cam/src/control/cam_logfile.F90
 
 ln -s $ACME_src_root/components/cam/src/physics/cam/ppgrid.F90
 ln -s $ACME_src_root/components/cam/src/physics/cam/constituents.F90
-ln -s $ACME_src_root/components/cam/src/physics/cam/global_summary.F90
+ln -s $ACME_src_root/components/cam/src/physics/cam/glb_verif_smry.F90
 
 
 # if not using pFUnit, also soft link files in tests/ to src/ so that we have 

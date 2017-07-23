@@ -505,7 +505,7 @@ end subroutine clubb_init_cnst
                                       iiedsclr_rt, iiedsclr_thl, iiedsclr_CO2 ! "    "
     use constituents,           only: cnst_get_ind, qmin, cnst_name
     use phys_control,           only: phys_getopts
-    use global_summary,         only: add_smry_field, SMALLER_THAN, CLIPPING, NO_FIX
+    use glb_verif_smry,         only: add_smry_field, SMALLER_THAN, CLIPPING, NO_FIX
 
 #endif
 
@@ -595,7 +595,7 @@ end subroutine clubb_init_cnst
 
     ! ------------------------------------------------------------------------ !
     ! Register tracer fields to be monitored for clubb_tend_cam. Note:
-    !  - For now we are using the global_summary module for diagnostics only;
+    !  - For now we are using the glb_verif_smry module for diagnostics only;
     !    clipping of unphysical values is still done by QNEG3. Therefore 
     !    in the loop below, fixer is set to NO_FIX.
     ! ------------------------------------------------------------------------ !
@@ -612,7 +612,7 @@ end subroutine clubb_init_cnst
     ! Register tracer fields to be monitored for clubb_surface. Note:
     !  - In that subroutine, lq is set to .true. for all tracers, so we also
     !    register all of them here.
-    !  - For now we are using the global_summary module for diagnostics only;
+    !  - For now we are using the glb_verif_smry module for diagnostics only;
     !    clipping of unphysical values is still done by QNEG3. Therefore 
     !    in the loop below, fixer is set to NO_FIX.
     ! ------------------------------------------------------------------------ !

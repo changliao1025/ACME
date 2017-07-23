@@ -1,7 +1,7 @@
 module test_core
 
   use physics_types,  only: physics_state, physics_tend
-  use global_summary, only: tp_stat_smry
+  use glb_verif_smry, only: tp_stat_smry
 
   implicit none
 
@@ -37,8 +37,8 @@ contains
 
     use physpkg,       only: phys_init
 
-    use global_summary,only: SMALLER_THAN, GREATER_EQ, ABS_SMALLER_THAN, ABS_GREATER_EQ, CLIPPING
-    use global_summary,only: add_smry_field
+    use glb_verif_smry,only: SMALLER_THAN, GREATER_EQ, ABS_SMALLER_THAN, ABS_GREATER_EQ, CLIPPING, &
+                             add_smry_field
 
     integer :: nstep = STEP
     integer :: idummy, icol, ichnk
@@ -108,11 +108,11 @@ contains
   !================================================================
   ! Main body of the test
   !================================================================
-  subroutine test_global_summary
+  subroutine test_glb_verif_smry
 
     use ppgrid,         only: begchunk, endchunk, pver
     use constituents, only: cnst_add, cnst_name
-    use global_summary, only: get_smry_field_idx, get_chunk_smry, get_global_smry
+    use glb_verif_smry, only: get_smry_field_idx, get_chunk_smry, get_global_smry
     use cam_logfile,   only: iulog
     use cam_abortutils,only: endrun
 
@@ -229,7 +229,7 @@ contains
        call endrun('Test error. chunk_smry and domain_smry do not match.')
     end if
 
-  end subroutine test_global_summary
+  end subroutine test_glb_verif_smry
 
 !@after
   !================================================================

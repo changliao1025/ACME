@@ -383,7 +383,7 @@ end subroutine check_energy_get_integrals
 !------------------------------Arguments--------------------------------
 
     use cam_history,       only: outfld
-    use global_summary,    only: tp_stat_smry, get_chunk_smry
+    use glb_verif_smry,    only: tp_stat_smry, get_chunk_smry
     use perf_mod,          only: t_startf, t_stopf
 
     type(physics_state)    , intent(inout) :: state

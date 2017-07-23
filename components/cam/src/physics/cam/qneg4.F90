@@ -24,8 +24,7 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
    use physconst,    only: gravit, latvap
    use constituents, only: qmin, pcnst
    use cam_logfile,  only: iulog
-   use global_summary,only: tp_stat_smry, get_chunk_smry
-   use global_summary,only: current_number_of_smry_fields
+   use glb_verif_smry,only: tp_stat_smry, get_chunk_smry, current_number_of_smry_fields
    use perf_mod,      only: t_startf, t_stopf
 
    implicit none

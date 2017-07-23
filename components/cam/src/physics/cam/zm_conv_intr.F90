@@ -119,7 +119,7 @@ subroutine zm_conv_init(pref_edge)
   use physics_buffer, only: pbuf_get_index
   use rad_constituents, only: rad_cnst_get_info 
   use constituents,     only: qmin, pcnst, cnst_name, cnst_is_convtran1
-  use global_summary,   only: add_smry_field, ABS_GREATER_EQ, SMALLER_THAN, NO_FIX
+  use glb_verif_smry,   only: add_smry_field, ABS_GREATER_EQ, SMALLER_THAN, NO_FIX
   use physconst,        only: rounding_tol, water_cnsv_tol
 
   implicit none

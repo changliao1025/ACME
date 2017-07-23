@@ -613,7 +613,7 @@ subroutine micro_mg_cam_init(pbuf2d)
    use micro_mg1_5, only: micro_mg_init1_5 => micro_mg_init
    use micro_mg2_0, only: micro_mg_init2_0 => micro_mg_init
 
-   use global_summary, only: add_smry_field, ABS_GREATER_EQ, SMALLER_THAN, NO_FIX
+   use glb_verif_smry, only: add_smry_field, ABS_GREATER_EQ, SMALLER_THAN, NO_FIX
    use physconst,      only: rounding_tol, water_cnsv_tol
    !-----------------------------------------------------------------------
    !
@@ -1084,7 +1084,7 @@ subroutine micro_mg_cam_tend(state, ptend, dtime, pbuf, chunk_smry)
 
    use physics_buffer,  only: pbuf_col_type_index
    use subcol,          only: subcol_field_avg
-   use global_summary,  only: tp_stat_smry
+   use glb_verif_smry,  only: tp_stat_smry
 
    type(physics_state),         intent(in)    :: state
    type(physics_ptend),         intent(out)   :: ptend

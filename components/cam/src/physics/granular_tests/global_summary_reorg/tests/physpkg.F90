@@ -20,7 +20,7 @@ module physpkg
        physics_state_alloc, physics_state_dealloc, physics_tend_alloc, physics_tend_dealloc
   use ppgrid,           only: begchunk, endchunk, pcols, pver, pverp, psubcols
   use constituents,     only: pcnst, cnst_name, cnst_get_ind
-  use global_summary,   only: tp_stat_smry, global_smry_init
+  use glb_verif_smry,   only: tp_stat_smry, global_smry_init
 
   use cam_logfile,     only: iulog
   
