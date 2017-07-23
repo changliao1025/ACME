@@ -603,7 +603,7 @@ end subroutine clubb_init_cnst
       write(routine_name,'(a,i2.2)') 'clubb_macmic_substep_',macmic_it
 
       do m = 1,pcnst
-        if (lq(m)) &
+        if (lq(m) .and. .not.any(trim(cnst_name(m)).eq.(/"NUMLIQ","NUMICE","NUMRAI","NUMSNO","DMS"/)) ) &
         call add_smry_field(trim(cnst_name(m)), trim(routine_name), '(mr)', &
                             SMALLER_THAN, qmin(m), fixer=NO_FIX)
       end do

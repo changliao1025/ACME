@@ -147,8 +147,8 @@ subroutine zm_conv_init(pref_edge)
   lq(1)  = .TRUE.
   lq(2:) = cnst_is_convtran1(2:)
   do m = 1,pcnst
-    if (lq(m)) &
-    call add_smry_field(cnst_name(m),'zm_conv_tend','(mr)',SMALLER_THAN, qmin(m), fixer=NO_FIX)
+    if ( lq(m) .and.  .not.any(trim(cnst_name(m)).eq.(/"NUMLIQ","NUMICE","NUMRAI","NUMSNO"/)) ) &
+    call add_smry_field(trim(cnst_name(m)),'zm_conv_tend','(mr)',SMALLER_THAN, qmin(m), fixer=NO_FIX)
   end do
 ! 
 ! Register fields with the output buffer
