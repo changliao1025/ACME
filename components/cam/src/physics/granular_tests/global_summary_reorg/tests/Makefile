@@ -60,6 +60,7 @@ OBJ1 = \
         spmd_utils.o  \
 
 OBJ2 = \
+        perf_mod.o
 	ppgrid.o  \
 	physconst.o  \
 	constituents.o  \

@@ -33,6 +33,7 @@ module glb_verif_smry
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
   use physconst,      only: pi
+  use perf_mod,       only: t_startf, t_stopf
 
   implicit none
   private
@@ -371,9 +372,12 @@ contains
     character(len=shortchar) :: cmpr_type_char
   
     !-------------------------------------------------------------------------
+    call t_startf('get_smry_field_idx')
     call get_smry_field_idx( fldname, procname, ifld )
+    call t_stopf('get_smry_field_idx')
     if (ifld.eq.INT_UNDEF) return
 
+    call t_startf('chunk_smry_flag_cnt_loc')
     !-------------------------------------------------------------------------
     ! Calculate the total number of grid cells with value exceeding threshold
     ! and identify location of the extremem value.
@@ -410,14 +414,17 @@ contains
     ! Total number of values exceeding threshold
 
     chunk_smry(ifld)%count = sum( iflag )
+    call t_stopf('chunk_smry_flag_cnt_loc')
 
     ! The extreme value
 
+    call t_startf('chunk_smry_extreme')
     chunk_smry(ifld)%extreme_val  = array(idx(1),idx(2))
     chunk_smry(ifld)%extreme_col  =       idx(1)
     chunk_smry(ifld)%extreme_lev  =       idx(2)
     chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
     chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
+    call t_stopf('chunk_smry_extreme')
 
     ! Clipping
 
@@ -472,9 +479,12 @@ contains
     character(len=shortchar) :: cmpr_type_char
 
     !-------------------------------------------------------------------------
+    call t_startf('get_smry_field_idx')
     call get_smry_field_idx( fldname, procname, ifld )
+    call t_stopf('get_smry_field_idx')
     if (ifld.eq.INT_UNDEF) return
  
+    call t_startf('chunk_smry_flag_cnt_loc')
     !-----------------------------------------------------------------------
     ! Calculate the total number of columns with value exceeding threshold
     ! and identify location of the extremem value.
@@ -511,13 +521,16 @@ contains
     ! Total number of values exceeding threshold
 
     chunk_smry(ifld)%count = sum( iflag )
+    call t_stopf('chunk_smry_flag_cnt_loc')
 
     ! The extreme value
 
+    call t_startf('chunk_smry_extreme')
     chunk_smry(ifld)%extreme_val  = array(idx(1))
     chunk_smry(ifld)%extreme_col  =       idx(1)
     chunk_smry(ifld)%extreme_lat  =   lat(idx(1))
     chunk_smry(ifld)%extreme_lon  =   lon(idx(1))
+    call t_stopf('chunk_smry_extreme')
 
     ! Clipping
 
@@ -653,9 +666,11 @@ contains
     !--------------------------------------------
     ! Get domain summaries for each MPI process
     !--------------------------------------------
+    call t_startf('call_get_domain_smry')
     do ii = 1,current_number_of_smry_fields
        call get_domain_smry( chunk_smry_2d(:,ii), domain_smry_1d(ii) )
     end do
+    call t_stopf('call_get_domain_smry')
 
     !--------------------------------------------
     ! Get global summaries
@@ -666,6 +681,7 @@ contains
     imax = 0
     imin = 0
 
+    call t_startf('pack_domain_smry')
     do ii = 1,current_number_of_smry_fields
 
       SELECT CASE (domain_smry_1d(ii)%cmpr_type)
@@ -678,11 +694,13 @@ contains
         snd_array_mpimin(imin) = domain_smry_1d(ii)%extreme_val
       END SELECT
     end do
+    call t_stopf('pack_domain_smry')
 
     !- MPI communications ---
     !
     !  Find the global max values
 
+    call t_startf('glb_smry_mpi_calls')
     if (imax.ne.n_smry_fields_mpimax) then
        call endrun(trim(THIS_MODULE)//'imax .ne. n_smry_fields_mpimax!')
     end if
@@ -706,6 +724,7 @@ contains
     if (current_number_of_smry_fields.gt.0) then
        call mpiallsumint( domain_smry_1d(:)%count, global_smry_1d(:)%count, current_number_of_smry_fields, mpicom)
     end if
+    call t_stopf('glb_smry_mpi_calls')
 
     !- MPI communications done ---
 
@@ -714,6 +733,7 @@ contains
     imax = 0
     imin = 0
 
+    call t_startf('unpack_glb_smry')
     do ii = 1,current_number_of_smry_fields
 
       SELECT CASE (domain_smry_1d(ii)%cmpr_type)
@@ -726,6 +746,7 @@ contains
         global_smry_1d(ii)%extreme_val = rcv_array_mpimin(imin)
       END SELECT
     end do
+    call t_stopf('unpack_glb_smry')
 
 #else
 
@@ -734,6 +755,7 @@ contains
 
 #endif
 
+    call t_startf('glb_smry_print')
     !-------------------------------
     ! Print messages to log file
     !-------------------------------
@@ -809,6 +831,7 @@ contains
       end if
 
     end do
+    call t_stopf('glb_smry_print')
 
   end subroutine get_global_smry
 
