@@ -360,12 +360,14 @@ contains
              !HuiWan:2017-07 ===
 
 !!== KZ_WATCON 
+             call t_startf('qneg3_in_physics_update')
              if(use_mass_borrower) then 
                 call qneg3(trim(name), state%lchnk, ncol, state%psetcols, pver, m, m, qmin(m), state%q(1,1,m),.False.)
                 call massborrow(trim(name), state%lchnk, ncol, state%psetcols, m, m, qmin(m), state%q(1,1,m), state%pdel)
              else
                 call qneg3(trim(name), state%lchnk, ncol, state%psetcols, pver, m, m, qmin(m), state%q(1,1,m),.True.)
              end if 
+             call t_stopf('qneg3_in_physics_update')
 !!== KZ_WATCON 
           else
              do k = ptend%top_level, ptend%bot_level
