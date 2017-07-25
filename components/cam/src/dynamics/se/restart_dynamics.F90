@@ -109,7 +109,8 @@ CONTAINS
 
     call write_restart_hycoef(File)
 
-   if (iam .lt. par%nprocs) then
+!   if (iam .lt. par%nprocs) then
+   if (par%dynproc) then
     elem => dyn_out%elem
    else
     allocate (elem(0))
@@ -266,7 +267,8 @@ CONTAINS
     call pio_freedecomp(File, iodesc2d)
     call pio_freedecomp(File, iodesc3d)
 
-   if (iam .lt. par%nprocs) then
+!   if (iam .lt. par%nprocs) then
+   if (par%dynproc) then
    else
     deallocate(elem)
    endif  !!  iam .lt. par%nprocs
@@ -346,7 +348,8 @@ CONTAINS
 
     call dyn_init1(file, NLFileName, dyn_in, dyn_out)
 
-   if (iam .lt. par%nprocs) then
+!   if (iam .lt. par%nprocs) then
+   if (par%dynproc) then
     elem=>dyn_in%elem
    else
     allocate (elem(0))
@@ -544,7 +547,8 @@ CONTAINS
 
     call dyn_init2(dyn_in)
 
-   if (iam .lt. par%nprocs) then
+!   if (iam .lt. par%nprocs) then
+   if (par%dynproc) then
    else
     deallocate(elem)
    endif  !!  iam .lt. par%nprocs
