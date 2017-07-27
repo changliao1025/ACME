@@ -413,6 +413,8 @@ contains
     nullify(lat_coord)
     nullify(lon_coord)
 
+    !lbal_opt = 5 ! ASD
+
     call t_adj_detailf(-2)
     call t_startf("phys_grid_init")
 
@@ -603,6 +605,7 @@ contains
     ! Option -1: each dynamics block is a single chunk
     !            
     if (lbal_opt == -1) then
+       if (masterproc) write(iulog,*) 'ASD using lbal_opt = -1' ! ASD  
        !
        ! Check that pcols >= maxblksiz
        !
@@ -732,10 +735,6 @@ contains
        ! Determine whether dynamics and physics decompositions
        ! are colocated, not requiring any interprocess communication
        ! in the coupling.
-       !+++ ASD
-       if (masterproc) write(iulog,'(A40)') 'ASD - Dynamics and Physics Processors:'
-       if (masterproc) write(iulog,'(6(A8,1x))') 'Col ID', 'Ele ID', 'Col PE', 'Ele PE', 'Chnk', '# Ele'
-       !--- ASD
        local_dp_map = .true.   
        do cid=1,nchunks ! Cycle through all of the physics-chunks
           do i=1,chunks(cid)%ncols  ! For each chunk, cycle through all of the columns in that chunk
@@ -748,17 +747,26 @@ contains
                    local_dp_map = .false.   
                 endif
              enddo
-             !+++ ASD Print to atmosphere log file all of this information:
-             if (masterproc) then
-                do jb = 1,block_cnt
-                   owner_d = get_block_owner_d(blockids(jb)) ! Determine which processor this dynamics element is solved on
-                   write(iulog,'(6(I8,1x))') curgcol_d, blockids(jb), chunks(cid)%owner, owner_d, cid, block_cnt
-                end do
-             end if
-             !--- ASD
           enddo
        enddo
     endif
+    !+++ ASD Print to atmosphere log file all of this information:
+    if (masterproc) write(iulog,'(A40)') 'ASD - Dynamics and Physics Processors:'
+    if (masterproc) write(iulog,'(6(A8,1x))') 'Col ID', 'Ele ID', 'Col PE', 'Ele PE', 'Chnk', '# Ele'
+    do cid=1,nchunks ! Cycle through all of the physics-chunks
+       do i=1,chunks(cid)%ncols  ! For each chunk, cycle through all of the columns in that chunk
+          curgcol_d = chunks(cid)%gcol(i)  ! Determine the global column index for the local chunk column index
+          block_cnt = get_gcol_block_cnt_d(curgcol_d) ! ! Determine number of dynamics elements the global column belongs to
+          call get_gcol_block_d(curgcol_d,block_cnt,blockids,bcids) ! Determine which elements the column belongs to (blockids) and the corresponding local column index (bcids)
+          if (masterproc) then
+             do jb = 1,block_cnt
+                owner_d = get_block_owner_d(blockids(jb)) ! Determine which processor this dynamics element is solved on
+                write(iulog,'(6(I8,1x))') curgcol_d, blockids(jb), chunks(cid)%owner, owner_d, cid, block_cnt
+             end do
+          end if
+       end do
+    end do
+    !--- ASD
     !
     ! Allocate and initialize data structures for gather/scatter
     !  
@@ -809,6 +817,7 @@ contains
     nlchunks = npchunks(iam)
     begchunk = pchunkid(iam)   + lastblock
     endchunk = pchunkid(iam+1) + lastblock - 1
+    print *, 'ASD beg/end chunk', iam, begchunk, endchunk !ASD
     !
     allocate( lchunks(begchunk:endchunk) )
     do cid=1,nchunks
@@ -4343,6 +4352,7 @@ logical function phys_grid_initialized ()
 ! Determine total number of chunks and
 ! number of chunks in each "SMP node"
 !  (assuming no vertical decomposition)
+       if (masterproc) write(iulog,*) 'ASD using lbal_opt = 5' ! ASD  
       nchunks = 0
       nsmpchunks(:) = 0
       do j=firstblock,lastblock

@@ -30,7 +30,7 @@ module spmd_dyn
 CONTAINS
 !========================================================================
 
-  subroutine spmd_readnl(nlfilename, dyn_npes)
+  subroutine spmd_readnl(nlfilename, dyn_npes, dyn_npes_stride)
 
     use namelist_utils,  only: find_group_name
     use units,           only: getunit, freeunit
@@ -41,6 +41,9 @@ CONTAINS
 
     character(len=*), intent(in) :: nlfilename
     integer, intent(out) :: dyn_npes
+    !+++ AaronDonahue
+    integer, intent(out) :: dyn_npes_stride
+    !--- AaronDonahue
     integer :: ierr           ! error code
     integer :: unitn          ! namelist unit number
     integer :: color, nproc_tmp
@@ -48,7 +51,7 @@ CONTAINS
 
     logical :: dyn_equi_by_col
     integer :: dyn_alltoall
-    integer :: dyn_npes_stride
+!    integer :: dyn_npes_stride
     integer :: dyn_allgather
 
 

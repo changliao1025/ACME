@@ -110,6 +110,9 @@ CONTAINS
 
     integer :: neltmp(3)
     integer :: npes_se
+    !+++ AaronDonahue
+    integer :: stride_se
+    !--- AaronDonahue
 
     !----------------------------------------------------------------------
 
@@ -124,9 +127,9 @@ CONTAINS
     call dyn_grid_init()
 
     ! Read in the number of tasks to be assigned to SE (needed by initmp)
-    call spmd_readnl(NLFileName, npes_se)
+    call spmd_readnl(NLFileName, npes_se, stride_se)
     ! Initialize the SE structure that holds the MPI decomposition information
-    par=initmp(npes_se)
+    par=initmp(npes_se,stride_se)
 
     ! Read the SE specific part of the namelist
 !    if (iam<par%nprocs) then

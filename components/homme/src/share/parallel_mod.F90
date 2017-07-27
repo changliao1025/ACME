@@ -107,9 +107,12 @@ contains
 !  environment, returns a parallel_t structure..
 ! ================================================
      
-  function initmp(npes_in) result(par)
+  function initmp(npes_in,stride) result(par)
 #ifdef CAM
     use spmd_utils, only : mpicom
+    !+++ AaronDonahue
+    integer, intent(in), optional :: stride
+    !--- AaronDonahue
 #endif      
     integer, intent(in), optional ::  npes_in
     type (parallel_t) par
@@ -134,6 +137,12 @@ contains
     integer :: color
     integer :: iam_cam, npes_cam
     integer :: npes_homme
+    !+++ AaronDonahue
+    integer :: dyn_stride = 1
+    integer :: jj,pes_cnt
+    integer,allocatable :: dyn_pe_vec(:)
+    logical :: pe_assigned
+    !--- AaronDonahue
 #endif
     !================================================
     !     Basic MPI initialization
@@ -157,7 +166,37 @@ contains
     end if
     call MPI_comm_rank(mpicom,iam_cam,ierr)
 !    color = iam_cam/npes_homme
-    color = mod(iam_cam,3)
+    !+++ AaronDonahue
+    allocate(dyn_pe_vec(0:npes_cam-1))
+    if (present(stride)) dyn_stride=stride
+    if (dyn_stride == 0) then ! Find optimum stride
+       dyn_stride = npes_cam/npes_homme
+    end if
+    if (npes_homme>npes_cam) then
+       call abortmp('dyn_npes>npes, asking for too many dynamics processors') 
+    end if
+    pes_cnt = 0
+    dyn_pe_vec(:) = 0
+    do i = 1,npes_homme
+       pe_assigned = .FALSE.
+       do while (.not.pe_assigned)
+          jj = modulo(pes_cnt,npes_cam)
+          if (dyn_pe_vec(jj)==0) then
+             dyn_pe_vec(jj) = 1
+             pe_assigned = .TRUE.
+             pes_cnt = pes_cnt+dyn_stride
+          else
+             pes_cnt = pes_cnt+1
+          end if
+       end do
+    end do
+    if (dyn_pe_vec(iam_cam)==1) then
+       color = 0
+    else
+       color = 1
+    end if
+    deallocate(dyn_pe_vec)
+    !--- AaronDonahue
     call mpi_comm_split(mpicom, color, iam_cam, par%comm, ierr)
 !    if (iam_cam >= npes_homme) then
     if (color .ne. 0) then
@@ -179,6 +218,7 @@ contains
     par%masterproc = .FALSE.
     if(par%rank .eq. par%root .and. par%nprocs > 0) par%masterproc = .TRUE.
     if (par%masterproc) write(iulog,*)'number of MPI processes: ',par%nprocs
+    if (par%masterproc) write(iulog,*)'dyn_stride: ',dyn_stride
            
     if (MPI_DOUBLE_PRECISION==20 .and. MPI_REAL8==18) then
        ! LAM MPI defined MPI_REAL8 differently from MPI_DOUBLE_PRECISION
