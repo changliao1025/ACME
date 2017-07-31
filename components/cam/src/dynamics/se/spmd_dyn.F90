@@ -92,6 +92,7 @@ CONTAINS
     endif
 
     call mpibcast (dyn_npes,1,mpiint,0,mpicom)
+    call mpibcast (dyn_npes_stride,1,mpiint,0,mpicom)
 
   end subroutine spmd_readnl
 

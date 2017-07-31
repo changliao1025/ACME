@@ -568,6 +568,9 @@ end subroutine check_energy_get_integrals
   subroutine check_energy_gmean(state, pbuf2d, dtime, nstep)
 
     use physics_buffer, only : physics_buffer_desc, pbuf_get_field, pbuf_get_chunk
+    !+++ AaronDonahue
+    use spmd_utils,  only : iam
+    !--- AaronDonahue
     
 !-----------------------------------------------------------------------
 ! Compute global mean total energy of physics input and output states
@@ -592,6 +595,7 @@ end subroutine check_energy_get_integrals
 
     ! Copy total energy out of input and output states
 !DIR$ CONCURRENT
+!    print *, 'ASD chk_gmean p0:', iam !Aaron
     do lchnk = begchunk, endchunk
        ncol = state(lchnk)%ncol
        ! input energy
@@ -606,8 +610,10 @@ end subroutine check_energy_get_integrals
 
     ! Compute global means of input and output energies and of
     ! surface pressure for heating rate (assume uniform ptop)
+!    print *, 'ASD chk_gmean p1:', iam !Aaron
     call gmean(te, te_glob, 3)
 
+!    print *, 'ASD chk_gmean p2:', iam !Aaron
     if (begchunk .le. endchunk) then
        teinp_glob = te_glob(1)
        teout_glob = te_glob(2)
@@ -625,6 +631,7 @@ end subroutine check_energy_get_integrals
        heat_glob = 0._r8
     end if  !  (begchunk .le. endchunk)
     
+!    print *, 'ASD chk_gmean p3:', iam !Aaron
   end subroutine check_energy_gmean
 
 !===============================================================================

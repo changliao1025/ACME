@@ -99,7 +99,9 @@ module phys_grid
    use cam_abortutils,   only: endrun
    use perf_mod
    use cam_logfile,      only: iulog
-
+   !+++ AaronDonahue
+    use parallel_mod,     only: par
+   !--- AaronDonahue
    implicit none
    save
 
@@ -335,7 +337,7 @@ contains
          get_block_owner_d, &
          get_gcol_block_d, get_gcol_block_cnt_d, &
          get_horiz_grid_dim_d, get_horiz_grid_d, physgrid_copy_attributes_d
-    use spmd_utils, only: pair, ceil2
+    use spmd_utils, only: pair, ceil2, mpicom ! AaronDonahue added mpicom
     use cam_grid_support, only: cam_grid_register, iMap, max_hcoordname_len
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create
     use cam_grid_support, only: cam_grid_attribute_copy
@@ -405,6 +407,9 @@ contains
     character(len=max_hcoordname_len)   :: copy_gridname
     logical                             :: unstructured
     real(r8)                            :: lonmin, latmin
+    !+++ AaronDonahue
+    integer :: ierr, color
+    !--- AaronDonahue
 
     nullify(lonvals)
     nullify(latvals)
@@ -817,7 +822,17 @@ contains
     nlchunks = npchunks(iam)
     begchunk = pchunkid(iam)   + lastblock
     endchunk = pchunkid(iam+1) + lastblock - 1
+    !+++ AaronDonahue check to see if I do any physics solving or not
+    if (begchunk>endchunk) then
+       par%physproc = .FALSE.
+       color = 0
+    else
+       par%physproc = .TRUE.
+       color = 1
+    end if
+    !call mpi_comm_split(mpicom, color, iam, par%physcomm, ierr)
     print *, 'ASD beg/end chunk', iam, begchunk, endchunk !ASD
+    !--- AaronDonahue
     !
     allocate( lchunks(begchunk:endchunk) )
     do cid=1,nchunks

@@ -49,7 +49,9 @@ module parallel_mod
     integer :: intercomm(0:ncomponents-1) ! inter communicator list
     logical :: masterproc                
 #ifdef CAM
-    logical :: dynproc
+    logical :: dynproc                    ! Am I a dynamics processor?
+    logical :: physproc                   ! Am I a physics processor?
+    integer :: physcomm                   ! Communicator associated with physics solve
 #endif 
   end type
 
@@ -195,6 +197,7 @@ contains
     else
        color = 1
     end if
+!    print *, 'ASD - Stride Chk:', iam_cam, dyn_pe_vec(iam_cam), color
     deallocate(dyn_pe_vec)
     !--- AaronDonahue
     call mpi_comm_split(mpicom, color, iam_cam, par%comm, ierr)

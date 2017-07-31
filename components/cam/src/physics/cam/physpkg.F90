@@ -961,6 +961,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, pbuf2d,  cam_in, cam_out)
 
     ! Compute total energy of input state and previous output state
     call t_startf ('chk_en_gmean')
+!    if (masterproc) write(iulog,*) 'ASD Start check_energy_gmean' ! Aaron
     call check_energy_gmean(phys_state, pbuf2d, ztodt, nstep)
     call t_stopf ('chk_en_gmean')
 
@@ -1240,7 +1241,11 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, pbuf2d,  cam_out, &
     call t_stopf ('carma_accumulate_stats')
 
     call t_startf ('physpkg_st2')
-    call pbuf_deallocate(pbuf2d, 'physpkg')
+    !+++ AaronDonahue
+!    if (begchunk.le.endchunk) then
+       call pbuf_deallocate(pbuf2d, 'physpkg')
+!    end if
+    !--- AaronDonahue
 
     call pbuf_update_tim_idx()
     call diag_deallocate()
@@ -1269,7 +1274,11 @@ subroutine phys_final( phys_state, phys_tend, pbuf2d )
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     if(associated(pbuf2d)) then
-       call pbuf_deallocate(pbuf2d,'global')
+       !+++ AaronDonahue
+!       if (begchunk.le.endchunk) then
+          call pbuf_deallocate(pbuf2d,'global')
+!       end if
+       !--- AaronDonahue
        deallocate(pbuf2d)
     end if
     deallocate(phys_state)

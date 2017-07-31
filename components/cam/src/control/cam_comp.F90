@@ -97,7 +97,6 @@ subroutine cam_init( cam_out, cam_in, mpicom_atm, &
    use scamMod,          only: single_column
    use cam_pio_utils,    only: init_pio_subsystem
    use cam_instance,     only: inst_suffix
-
 #if ( defined SPMD )   
    real(r8) :: mpi_wtime  ! External
 #endif
@@ -355,6 +354,8 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
    use dycore,           only: dycore_is
 #if ( defined SPMD )
    use mpishorthand,     only: mpicom
+!   use spmd_utils,       only: iam ! Aaron
+!   use parallel_mod,     only: par ! Aaron
 #endif
 
    type(cam_out_t), intent(inout)        :: cam_out(begchunk:endchunk)
@@ -379,7 +380,9 @@ subroutine cam_run4( cam_out, cam_in, rstwr, nlend, &
    !
    call t_barrierf ('sync_wshist', mpicom)
    call t_startf ('wshist')
+!   print *, 'wshist sta, iam = ', iam, par%rank
    call wshist ()
+!   print *, 'wshist fin, iam = ', iam, par%rank
    call t_stopf  ('wshist')
 
 #if ( defined SPMD )
