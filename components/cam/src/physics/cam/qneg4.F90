@@ -116,7 +116,7 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
 ! 3. An alternative to 2: get chunk summary for concise message 
 
   call t_startf('get_chunk_smry')
-  call get_chunk_smry('LH_FLX_EXCESS','QNEG4 from '//trim(subnam), &
+  call get_chunk_smry('LHFLX_EXCESS_qneg4_'//trim(subnam), &
                       ncol, excess(:ncol),lat(:ncol),lon(:ncol),chunk_smry(:),istat)
   call t_stopf('get_chunk_smry')
 !---------------------------------------------------------

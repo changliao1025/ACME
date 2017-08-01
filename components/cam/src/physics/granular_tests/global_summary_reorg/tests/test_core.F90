@@ -73,20 +73,20 @@ contains
     ! This has to be done before 'call phys_init' which allocates memory for 
     ! chunk_smry and domain_smry.
     !-------------------------------------------------------------------------
-    call add_smry_field('Q','test_part_1','kg/kg',GREATER_EQ,  1.E-4_r8)
-    call add_smry_field('Q','test_part_2','kg/kg',SMALLER_THAN,1.E-4_r8)
+    call add_smry_field('Q_test_part_1','kg/kg',GREATER_EQ,  1.E-4_r8)
+    call add_smry_field('Q_test_part_2','kg/kg',SMALLER_THAN,1.E-4_r8)
 
-    call add_smry_field('CLDLIQ','test_part_1','kg/kg',GREATER_EQ,  1.E-9_r8)
-    call add_smry_field('CLDLIQ','test_part_2','kg/kg',SMALLER_THAN,1.E-9_r8)
+    call add_smry_field('CLDLIQ_test_part_1','kg/kg',GREATER_EQ,  1.E-9_r8)
+    call add_smry_field('CLDLIQ_test_part_2','kg/kg',SMALLER_THAN,1.E-9_r8)
 
-    call add_smry_field('COLIDX','test_part_1','-',SMALLER_THAN,5._r8)
-    call add_smry_field('COLIDX','test_part_2','-',GREATER_EQ,  5._r8)
+    call add_smry_field('COLIDX_test_part_1','-',SMALLER_THAN,5._r8)
+    call add_smry_field('COLIDX_test_part_2','-',GREATER_EQ,  5._r8)
 
-    call add_smry_field('NEGCOLIDX','test_part_1','-',ABS_SMALLER_THAN,5._r8)
-    call add_smry_field('NEGCOLIDX','test_part_2','-',ABS_GREATER_EQ,  5._r8)
+    call add_smry_field('NEGCOLIDX_test_part_1','-',ABS_SMALLER_THAN,5._r8)
+    call add_smry_field('NEGCOLIDX_test_part_2','-',ABS_GREATER_EQ,  5._r8)
 
-    call add_smry_field('NEGCOLIDX_FIX','test_part_1','-',SMALLER_THAN,-4.5_r8,fixer=CLIPPING)
-    call add_smry_field('NEGCOLIDX_FIX','test_part_2','-',GREATER_EQ,  -4.0_r8,fixer=CLIPPING)
+    call add_smry_field('NEGCOLIDX_FIX_test_part_1','-',SMALLER_THAN,-4.5_r8,fixer=CLIPPING)
+    call add_smry_field('NEGCOLIDX_FIX_test_part_2','-',GREATER_EQ,  -4.0_r8,fixer=CLIPPING)
 
     !-------------------------------------------------------------------------------
     ! Allocate memory for state, tend, and stat vectors; read in initial conditions.
@@ -137,7 +137,7 @@ contains
          n_tot_cnt_in_chunk(ichnk,icnst) = 0
 
          itr = icnst
-         call get_chunk_smry( cnst_name(icnst),'test_part_1',               &! intent:in
+         call get_chunk_smry( trim(cnst_name(icnst))//'_test_part_1',       &! intent:in
                               ncol, pver,                                   &! intent: in
                               phys_state(ichnk)%q(:ncol,:,itr),             &! intent:inout, in
                               phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent:in
@@ -145,7 +145,7 @@ contains
 
          n_tot_cnt_in_chunk(ichnk,icnst) = n_tot_cnt_in_chunk(ichnk,icnst) + chunk_smry(ichnk,istat)%count
 
-         call get_chunk_smry( cnst_name(icnst),'test_part_2',               &! intent:in
+         call get_chunk_smry( trim(cnst_name(icnst))//'_test_part_2',       &! intent:in
                               ncol, pver,                                   &! intent:in
                               phys_state(ichnk)%q(:ncol,:,itr),             &! intent:inout, in
                               phys_state(ichnk)%lat, phys_state(ichnk)%lon, &! intent:in
@@ -206,8 +206,8 @@ contains
     do icnst = 1,PCNST
 
        itr = icnst
-       call get_smry_field_idx(cnst_name(icnst),'test_part_1',istat1)
-       call get_smry_field_idx(cnst_name(icnst),'test_part_2',istat2)
+       call get_smry_field_idx(trim(cnst_name(icnst))//'_test_part_1',istat1)
+       call get_smry_field_idx(trim(cnst_name(icnst))//'_test_part_2',istat2)
 
        n_tot_cnt_in_domain(icnst) = domain_smry(istat1)%count &
                                   + domain_smry(istat2)%count
@@ -216,6 +216,16 @@ contains
     !@assert
 
     if (any(n_tot_cnt_in_domain/=ncol*nchnk*pver)) then
+
+       write(iulog,*)
+       write(iulog,*) '----'
+       write(iulog,*) 'cnst idx, n_tot_cnt_in_domain, ncol*nchnk*pver: do they match?'
+       write(iulog,*)
+
+       do icnst = 1,PCNST
+          write(iulog,*) icnst, n_tot_cnt_in_domain(icnst), ncol*nchnk*pver
+       end do
+
        call endrun('Test error in domain_smry.')
     end if
 

@@ -490,7 +490,7 @@ subroutine gw_init()
   end if
 
    ! Register fields for global summary
-   call add_smry_field('TOT_ENERGY_REL_ERR','gwdrag(check_energy_chng)','-',ABS_GREATER_EQ,rounding_tol)
+   call add_smry_field('TOT_ENERGY_REL_ERR_gwdrag_check_energy_chng','-',ABS_GREATER_EQ,rounding_tol)
 
 
 end subroutine gw_init

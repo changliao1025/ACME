@@ -604,7 +604,7 @@ end subroutine clubb_init_cnst
 
       do m = 1,pcnst
         if (lq(m) .and. .not.any(trim(cnst_name(m)).eq.(/"NUMLIQ","NUMICE","NUMRAI","NUMSNO","DMS"/)) ) &
-        call add_smry_field(trim(cnst_name(m)), trim(routine_name), '(mr)', &
+        call add_smry_field(trim(cnst_name(m))//'_'//trim(routine_name), '(mr)', &
                             SMALLER_THAN, qmin(m), fixer=NO_FIX)
       end do
     end do
@@ -617,7 +617,7 @@ end subroutine clubb_init_cnst
     !    in the loop below, fixer is set to NO_FIX.
     ! ------------------------------------------------------------------------ !
     do m = 1,pcnst
-       call add_smry_field(trim(cnst_name(m)),'clubb_surface','(mr)',SMALLER_THAN,qmin(m),fixer=NO_FIX)
+       call add_smry_field(trim(cnst_name(m))//'_clubb_surface','(mr)',SMALLER_THAN,qmin(m),fixer=NO_FIX)
     end do
 
     ! ----------------------------------------------------------------- !

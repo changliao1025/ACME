@@ -71,7 +71,6 @@ module glb_verif_smry
 
   type tp_stat_smry
 
-    character(len=shortchar) :: procedure_name   ! a procedure could be any piece of code
     character(len=shortchar) :: field_name       ! the physical quantity to be evaluated
     character(len=shortchar) :: field_unit       ! unit of the field
 
@@ -129,10 +128,9 @@ contains
   !  The subroutine registers a new field for getting global summary. It is expected to be
   !  called during the initialization of various parameterizations.
   !--------------------------------------------------------------------------------------------
-  subroutine add_smry_field( fldname, procname, fldunit, cmprtype, threshold, fixer, fldidx )
+  subroutine add_smry_field( fldname, fldunit, cmprtype, threshold, fixer, fldidx )
 
     character(len=*), intent(in)   :: fldname
-    character(len=*), intent(in)   :: procname
     character(len=*), intent(in)   :: fldunit
     integer                        :: cmprtype
     real(r8)                       :: threshold
@@ -154,10 +152,9 @@ contains
     ! Check if the same field from the same procedure has already been registered.
 
     do ii = 1,current_number_of_smry_fields
-       if (trim(global_smry_1d(ii)%field_name) == trim(fldname) .and. &
-           trim(global_smry_1d(ii)%procedure_name) == trim(procname)  ) then
-           msg = trim(THIS_MODULE)//': field '//trim(fldname)//' from procedure '// &
-                 trim(procname)//' has already been added to list of statistical summary.'
+       if (trim(global_smry_1d(ii)%field_name) == trim(fldname) ) then
+           msg = trim(THIS_MODULE)//': field '//trim(fldname)// &
+                 ' has already been added to list of statistical summary.'
            call endrun(trim(msg))
        end if
     end do
@@ -173,7 +170,6 @@ contains
 
     ii = current_number_of_smry_fields
     global_smry_1d(ii)%field_name     = trim(fldname)
-    global_smry_1d(ii)%procedure_name = trim(procname)
     global_smry_1d(ii)%field_unit     = trim(fldunit)
     global_smry_1d(ii)%threshold      = threshold
     global_smry_1d(ii)%cmpr_type      = cmprtype
@@ -190,8 +186,7 @@ contains
        n_smry_fields_mpimin = n_smry_fields_mpimin + 1
 
     CASE DEFAULT
-       msg = trim(THIS_MODULE)//': unknown comparison for field '//trim(fldname) &
-                          //', procedure '//trim(procname)
+       msg = trim(THIS_MODULE)//': unknown comparison for field '//trim(fldname) 
        call endrun(trim(msg))
     END SELECT
 
@@ -238,9 +233,6 @@ contains
     domain_smry_1d(1:current_number_of_smry_fields)%field_name = &
     global_smry_1d(1:current_number_of_smry_fields)%field_name
 
-    domain_smry_1d(1:current_number_of_smry_fields)%procedure_name = &
-    global_smry_1d(1:current_number_of_smry_fields)%procedure_name
-
     domain_smry_1d(1:current_number_of_smry_fields)%field_unit = &
     global_smry_1d(1:current_number_of_smry_fields)%field_unit
 
@@ -270,9 +262,6 @@ contains
        chunk_smry_2d(ichnk,1:current_number_of_smry_fields)%field_name = &
       global_smry_1d(      1:current_number_of_smry_fields)%field_name
 
-       chunk_smry_2d(ichnk,1:current_number_of_smry_fields)%procedure_name = &
-      global_smry_1d(      1:current_number_of_smry_fields)%procedure_name
-
        chunk_smry_2d(ichnk,1:current_number_of_smry_fields)%field_unit = &
       global_smry_1d(      1:current_number_of_smry_fields)%field_unit
 
@@ -300,14 +289,13 @@ contains
        write(iulog,*)'GLB_VERIF_SMRY: current_number_of_smry_fields = ',current_number_of_smry_fields 
        write(iulog,*)'GLB_VERIF_SMRY: '
 
-       write(iulog,'(a19,a8, a36,a20,a12, a10,a11,a7)')  &
-                     'GLB_VERIF_SMRY:','Index', 'Procedure','Field','Unit', 'Compr.','Threshold','Fixer'
+       write(iulog,'(a19,a8, a50,a12, a10,a11,a7)')  &
+                     'GLB_VERIF_SMRY:','Index', 'Field','Unit', 'Compr.','Threshold','Fixer'
 
        do ifld = 1,current_number_of_smry_fields
 
-          write(iulog,'(a19,i8, a36,a20,a12, i10,e11.3,i7)')                &
+          write(iulog,'(a19,i8, a50,a12, i10,e11.3,i7)')                &
                       'GLB_VERIF_SMRY:',ifld,                               &
-                      trim(domain_smry_1d(ifld)%procedure_name),            &
                       trim(domain_smry_1d(ifld)%field_name),                &
                       trim(domain_smry_1d(ifld)%field_unit),                &
                       domain_smry_1d(ifld)%cmpr_type,                       &
@@ -324,18 +312,16 @@ contains
   ! Description:
   !   Find a field on the global summary list and return the index.
   !---------------------------------------------------------------------
-  subroutine get_smry_field_idx( fldname, procname, fldidx )
+  subroutine get_smry_field_idx( fldname, fldidx )
 
     character(len=*), intent(in)   :: fldname
-    character(len=*), intent(in)   :: procname
     integer, intent(out)           :: fldidx
 
     integer :: ii
 
     fldidx = INT_UNDEF
     do ii = 1,current_number_of_smry_fields 
-       if (trim(global_smry_1d(ii)%field_name) == trim(fldname) .and. &
-           trim(global_smry_1d(ii)%procedure_name) == trim(procname)  ) then
+       if (trim(global_smry_1d(ii)%field_name) == trim(fldname) ) then
           fldidx = ii
           exit
        end if
@@ -351,11 +337,10 @@ contains
   !   in a single chunk of CAM's physics grid. The particular incarnation of the 
   !   subroutine deals with fields that have multiple vertical levels. 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_m_lev_real( fldname, procname, ncol, nlev, array_in, &
+  subroutine get_chunk_smry_m_lev_real( fldname, ncol, nlev, array_in, &
                                       &  lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
-    character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol                 ! number of columns packed in array
     integer,           intent(in)    :: nlev                 ! number of vertical levels
     real(r8),          intent(inout) :: array_in(ncol,nlev)  ! input array of values to be checked
@@ -373,7 +358,7 @@ contains
   
     !-------------------------------------------------------------------------
     call t_startf('get_smry_field_idx')
-    call get_smry_field_idx( fldname, procname, ifld )
+    call get_smry_field_idx( fldname, ifld )
     call t_stopf('get_smry_field_idx')
     if (ifld.eq.INT_UNDEF) return
 
@@ -435,8 +420,8 @@ contains
     ! Send message to log file
   
     if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
-         'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
+       write(iulog,'(2x,a,a50,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
+         'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
          ', extreme is ',chunk_smry(ifld)%extreme_val,' at ',&
@@ -459,11 +444,10 @@ contains
   !   subroutine deals with fields that do not have a vertical distribution (e.g. surface
   !   fluxes and vertical integrals). 
   !---------------------------------------------------------------------------------------
-  subroutine get_chunk_smry_1_lev_real( fldname, procname, ncol, array_in, &
+  subroutine get_chunk_smry_1_lev_real( fldname, ncol, array_in, &
                                         lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
-    character(len=*),  intent(in)    :: procname
     integer,           intent(in)    :: ncol              ! number of columns packed in array
     real(r8),          intent(inout) :: array_in(ncol)    ! input array of values to be checked
     real(r8),          intent(in)    :: lat(ncol)
@@ -480,7 +464,7 @@ contains
 
     !-------------------------------------------------------------------------
     call t_startf('get_smry_field_idx')
-    call get_smry_field_idx( fldname, procname, ifld )
+    call get_smry_field_idx( fldname, ifld )
     call t_stopf('get_smry_field_idx')
     if (ifld.eq.INT_UNDEF) return
  
@@ -541,8 +525,8 @@ contains
     ! Send message to log file
   
     if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
-         'chunk_smry: ',trim(chunk_smry(ifld)%procedure_name), &
+       write(iulog,'(2x,a,a50,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
+         'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
          ', extreme is ',chunk_smry(ifld)%extreme_val,' at ',&
@@ -610,8 +594,8 @@ contains
     ! Send message to log file
   
     if ( l_print_always .and. (domain_smry%count.gt.0) ) then
-       write(iulog,'(2x,a,a36,a20,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
-         'domain_smry: ',trim(domain_smry%procedure_name), &
+       write(iulog,'(2x,a,a50,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
+         'domain_smry: ', &
          trim(domain_smry%field_name),'('//trim(domain_smry%field_unit)//')',': ', &
          domain_smry%count, ' values ',trim(cmpr_type_char), domain_smry%threshold, &
          ', extreme is ',domain_smry%extreme_val,' at ',&
@@ -765,9 +749,9 @@ contains
         any(global_smry_1d(1:current_number_of_smry_fields)%count.gt.0) ) then
 
        write(iulog,*)
-       write(iulog,'(a19,a8, a36,a20,a12, a10,a11,a2,a8, a13,a7, a9,a9,a5,a10,a5)')  &
+       write(iulog,'(a19,a8, a50,a12, a10,a11,a2,a8, a13,a7, a9,a9,a5,a10,a5)')  &
                    'GLB_VERIF_SMRY:','nstep',  &
-                   'Procedure','Field','Unit',      &
+                   'Field','Unit',      &
                    'Cmpr.','Threshold','','Count',  &
                    'Extreme', 'Fixer',              &
                    '(Lat','Lon','Lev','Chunk','Col)'
@@ -796,9 +780,8 @@ contains
 
       if (masterproc .and. global_smry_1d(ii)%count.gt.0 ) then
 
-        write(iulog,'(a19,i8, a36,a20,a12, a10,e11.3,a2, i8, e13.3,i7)') &
+        write(iulog,'(a19,i8, a50,a12, a10,e11.3,a2, i8, e13.3,i7)') &
                     'GLB_VERIF_SMRY:',nstep, &
-                    trim(global_smry_1d(ii)%procedure_name),         &
                     trim(global_smry_1d(ii)%field_name),             &
                     trim(global_smry_1d(ii)%field_unit),             &
                     trim(cmpr_type_char), global_smry_1d(ii)%threshold, ':', &
@@ -813,9 +796,8 @@ contains
       if ( l_global_smry_verbose .and. global_smry_1d(ii)%count.gt.0 ) then
       if ( global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val ) then
 
-         write(iulog,'(a19,i8, a36,a20,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
+         write(iulog,'(a19,i8, a50,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
                      'GLB_VERIF_SMRY_VB:',nstep, &
-                     trim(domain_smry_1d(ii)%procedure_name),                 &
                      trim(domain_smry_1d(ii)%field_name),                     &
                      trim(domain_smry_1d(ii)%field_unit) ,                     &
                      trim(cmpr_type_char), domain_smry_1d(ii)%threshold, ':', &

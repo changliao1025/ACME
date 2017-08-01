@@ -713,8 +713,8 @@ subroutine micro_mg_cam_init(pbuf2d)
    call handle_errmsg(errstring, subname="micro_mg_init")
 
    ! Register fields for global summary
-   call add_smry_field('TOT_ENERGY_REL_ERR','microp_tend(check_energy_chng)','-',ABS_GREATER_EQ,rounding_tol)
-   call add_smry_field('TOT_WATER_REL_ERR', 'microp_tend(check_energy_chng)','-',ABS_GREATER_EQ,water_cnsv_tol)
+   call add_smry_field('TOT_ENERGY_REL_ERR_microp_tend_check_energy_chng','-',ABS_GREATER_EQ,rounding_tol)
+   call add_smry_field('TOT_WATER_REL_ERR_microp_tend_check_energy_chng','-',ABS_GREATER_EQ,water_cnsv_tol)
 
    ! Register history variables
    do m = 1, ncnst
@@ -725,8 +725,8 @@ subroutine micro_mg_cam_init(pbuf2d)
          call addfld(sflxnam(mm),    horiz_only, 'A',   'kg/m2/s', trim(cnst_name(mm))//' surface flux')
 
          ! register glb smry entries. Do not let that utility do clipping for now
-         call add_smry_field(trim(cnst_name(mm)), 'cldwat',  'kg/kg', SMALLER_THAN, qmin(mm), fixer=NO_FIX )
-         call add_smry_field(trim(cnst_name(mm)), 'micro_mg','kg/kg', SMALLER_THAN, qmin(mm), fixer=NO_FIX )
+         call add_smry_field(trim(cnst_name(mm))//'_cldwat',  'kg/kg', SMALLER_THAN, qmin(mm), fixer=NO_FIX )
+         call add_smry_field(trim(cnst_name(mm))//'_micro_mg','kg/kg', SMALLER_THAN, qmin(mm), fixer=NO_FIX )
 
       else if ( any(mm == (/ ixnumliq, ixnumice, ixnumrain, ixnumsnow /)) ) then
          ! number concentrations

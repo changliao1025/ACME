@@ -353,7 +353,7 @@ contains
              !                replacing qneg3.
              if (present(chunk_smry)) then
                 call t_startf('get_chunk_smry')
-                call get_chunk_smry( trim(cnst_name(m)),trim(ptend%name), ncol, pver, state%q(:ncol,:,m), &
+                call get_chunk_smry( trim(cnst_name(m))//'_'//trim(ptend%name), ncol, pver, state%q(:ncol,:,m), &
                                      state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
                 call t_stopf('get_chunk_smry')
              end if
