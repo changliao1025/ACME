@@ -17,8 +17,8 @@ Module HydrologyNoDrainageMod
   use SoilStateType     , only : soilstate_type
   use WaterfluxType     , only : waterflux_type
   use WaterstateType    , only : waterstate_type
-  use LandunitType      , only : lun                
-  use ColumnType        , only : col                
+  use LandunitType      , only : lun_pp                
+  use ColumnType        , only : col_pp                
   !
   ! !PUBLIC TYPES:
   implicit none
@@ -40,7 +40,8 @@ contains
        atm2lnd_vars, soilstate_vars, energyflux_vars, temperature_vars, &
        waterflux_vars, waterstate_vars, &
        soilhydrology_vars, aerosol_vars, &
-       soil_water_retention_curve, betrtracer_vars, tracerflux_vars, tracerstate_vars)
+       soil_water_retention_curve, betrtracer_vars, tracerflux_vars, tracerstate_vars, &
+       alm_fates)
     !
     ! !DESCRIPTION:
     ! This is the main subroutine to execute the calculation of soil/snow
@@ -61,7 +62,7 @@ contains
     use landunit_varcon      , only : istice, istwet, istsoil, istice_mec, istcrop, istdlak 
     use column_varcon        , only : icol_roof, icol_road_imperv, icol_road_perv, icol_sunwall
     use column_varcon        , only : icol_shadewall
-    use clm_varctl           , only : use_cn, use_betr
+    use clm_varctl           , only : use_cn, use_betr, use_ed
     use clm_varpar           , only : nlevgrnd, nlevsno, nlevsoi, nlevurb
     use clm_time_manager     , only : get_step_size, get_nstep
     use SnowHydrologyMod     , only : SnowCompaction, CombineSnowLayers, DivideSnowLayers
@@ -77,6 +78,7 @@ contains
     use clm_varctl           , only : use_vsfm
     use SoilHydrologyMod     , only : DrainageVSFM
     use SoilWaterMovementMod, only : Compute_EffecRootFrac_And_VertTranSink_Default
+    use CLMFatesInterfaceMod  , only : hlm_fates_interface_type
     !
     ! !ARGUMENTS:
     type(bounds_type)        , intent(in)    :: bounds               
@@ -102,9 +104,11 @@ contains
     type(betrtracer_type)     , intent(in)    :: betrtracer_vars                    ! betr configuration information
     type(tracerflux_type)     , intent(inout) :: tracerflux_vars                    ! tracer flux
     type(tracerstate_type)    , intent(inout) :: tracerstate_vars                   ! tracer state variables data structure    
+    type(hlm_fates_interface_type) , intent(inout) :: alm_fates
     !
     ! !LOCAL VARIABLES:
     integer  :: g,l,c,j,fc                    ! indices
+    integer  :: nlevbed                       ! # layers to bedrock
     real(r8) :: dtime                         ! land model time step (sec)
     real(r8) :: psi,vwc,fsattmp,psifrz        ! temporary variables for soilpsi calculation
     real(r8) :: watdry                        ! temporary
@@ -115,15 +119,16 @@ contains
     real(r8) :: stsw                          ! volumetric soil water to 0.5 m at saturation
     real(r8) :: fracl                         ! fraction of soil layer contributing to 10cm total soil water
     real(r8) :: s_node                        ! soil wetness (-)
-    real(r8) :: icefrac(bounds%begc:bounds%endc,1:nlevsoi)
+    real(r8) :: icefrac(bounds%begc:bounds%endc,1:nlevgrnd)
     !-----------------------------------------------------------------------
     
     associate(                                                          & 
-         z                  => col%z                                  , & ! Input:  [real(r8) (:,:) ]  layer depth  (m)                      
-         dz                 => col%dz                                 , & ! Input:  [real(r8) (:,:) ]  layer thickness depth (m)             
-         zi                 => col%zi                                 , & ! Input:  [real(r8) (:,:) ]  interface depth (m)                   
-         snl                => col%snl                                , & ! Input:  [integer  (:)   ]  number of snow layers                    
-         ctype              => col%itype                              , & ! Input:  [integer  (:)   ]  column type                              
+         z                  => col_pp%z                                  , & ! Input:  [real(r8) (:,:) ]  layer depth  (m)                      
+         dz                 => col_pp%dz                                 , & ! Input:  [real(r8) (:,:) ]  layer thickness depth (m)             
+         zi                 => col_pp%zi                                 , & ! Input:  [real(r8) (:,:) ]  interface depth (m)                   
+         snl                => col_pp%snl                                , & ! Input:  [integer  (:)   ]  number of snow layers                    
+         nlev2bed           => col_pp%nlevbed                           , & ! Input:  [integer  (:)   ]  number of layers to bedrock                     
+         ctype              => col_pp%itype                              , & ! Input:  [integer  (:)   ]  column type                              
 
          t_h2osfc           => temperature_vars%t_h2osfc_col          , & ! Input:  [real(r8) (:)   ]  surface water temperature               
          dTdz_top           => temperature_vars%dTdz_top_col          , & ! Output: [real(r8) (:)   ]  temperature gradient in top layer (col) [K m-1] !
@@ -215,8 +220,8 @@ contains
             filter_hydrologyc, soilstate_vars, waterflux_vars)
 
       ! If FATES plant hydraulics is turned on, over-ride default transpiration sink calculation
-      ! (INTERF-FATES)
-      !if( use_ed ) call clm_fates%ComputeRootSoilFlux(bounds, num_hydrologyc, filter_hydrologyc, soilstate_inst, waterflux_inst)
+      if( use_ed ) call alm_fates%ComputeRootSoilFlux(bounds, num_hydrologyc, filter_hydrologyc, &
+                                                      soilstate_vars, waterflux_vars)
 
       call SoilWater(bounds, num_hydrologyc, filter_hydrologyc, num_urbanc, filter_urbanc, &
             soilhydrology_vars, soilstate_vars, waterflux_vars, waterstate_vars, temperature_vars, &
@@ -320,18 +325,19 @@ contains
       ! Calculate soil temperature and total water (liq+ice) in top 17cm of soil
       do fc = 1, num_nolakec
          c = filter_nolakec(fc)
-         l = col%landunit(c)
-         if (.not. lun%urbpoi(l)) then
+         l = col_pp%landunit(c)
+         if (.not. lun_pp%urbpoi(l)) then
             t_soi_10cm(c) = 0._r8
             tsoi17(c) = 0._r8
             h2osoi_liqice_10cm(c) = 0._r8
          end if
       end do
-      do j = 1, nlevsoi
-         do fc = 1, num_nolakec
-            c = filter_nolakec(fc)
-            l = col%landunit(c)
-            if (.not. lun%urbpoi(l)) then
+      do fc = 1, num_nolakec
+         c = filter_nolakec(fc)
+	 nlevbed = nlev2bed(c)
+         do j = 1, nlevbed
+            l = col_pp%landunit(c)
+            if (.not. lun_pp%urbpoi(l)) then
                ! soil T at top 17 cm added by F. Li and S. Levis
                if (zi(c,j) <= 0.17_r8) then
                   fracl = 1._r8
@@ -368,7 +374,7 @@ contains
       do fc = 1, num_nolakec
 
          c = filter_nolakec(fc)
-         l = col%landunit(c)
+         l = col_pp%landunit(c)
 
          ! t_grnd is weighted average of exposed soil and snow
          if (snl(c) < 0) then
@@ -379,13 +385,13 @@ contains
             t_grnd(c) = (1 - frac_h2osfc(c)) * t_soisno(c,1) + frac_h2osfc(c) * t_h2osfc(c)
          endif
 
-         if (lun%urbpoi(l)) then
+         if (lun_pp%urbpoi(l)) then
             t_grnd_u(c) = t_soisno(c,snl(c)+1)
          else
             t_soi_10cm(c) = t_soi_10cm(c)/0.1_r8
             tsoi17(c) =  tsoi17(c)/0.17_r8         ! F. Li and S. Levis
          end if
-         if (lun%itype(l)==istsoil .or. lun%itype(l)==istcrop) then
+         if (lun_pp%itype(l)==istsoil .or. lun_pp%itype(l)==istcrop) then
             t_grnd_r(c) = t_soisno(c,snl(c)+1)
          end if
 
@@ -407,7 +413,7 @@ contains
          end do
       end do
 
-      if (use_cn) then
+      if (use_cn .or. use_ed) then
          ! Update soilpsi.
          ! ZMS: Note this could be merged with the following loop updating smp_l in the future.
          do j = 1, nlevgrnd
@@ -433,7 +439,7 @@ contains
          end do
       end if
 
-      if (use_cn) then
+      if (use_cn .or. use_ed) then
          ! Available soil water up to a depth of 0.05 m.
          ! Potentially available soil water (=whc) up to a depth of 0.05 m.
          ! Water content as fraction of whc up to a depth of 0.05 m.

@@ -7,9 +7,9 @@ module WaterfluxType
   use shr_kind_mod , only: r8 => shr_kind_r8
   use decompMod    , only : bounds_type, get_proc_global
   use clm_varcon   , only : spval
-  use LandunitType , only : lun                
-  use ColumnType   , only : col                
-  use PatchType    , only : pft                
+  use LandunitType , only : lun_pp                
+  use ColumnType   , only : col_pp                
+  use VegetationType    , only : veg_pp                
   !
   implicit none
   save
@@ -91,6 +91,8 @@ module WaterfluxType
      real(r8), pointer :: qflx_h2osfc2topsoi_col   (:)   ! col liquid water coming from surface standing water top soil (mm H2O/s)
      real(r8), pointer :: qflx_snow2topsoi_col     (:)   ! col liquid water coming from residual snow to topsoil (mm H2O/s)
 
+     real(r8), pointer :: qflx_lateral_col         (:)   ! col lateral subsurface flux (mm H2O /s)
+
      real(r8), pointer :: snow_sources_col         (:)   ! col snow sources (mm H2O/s)
      real(r8), pointer :: snow_sinks_col           (:)   ! col snow sinks (mm H2O/s)
 
@@ -114,6 +116,15 @@ module WaterfluxType
      real(r8), pointer :: mflx_sub_snow_col_1d     (:)   ! mass flux from top soil layer due to sublimation of snow (kg H2O /s)
      real(r8), pointer :: mflx_snowlyr_col         (:)   ! mass flux to top soil layer due to disappearance of snow (kg H2O /s). This is for restart
      real(r8), pointer :: mflx_neg_snow_col_1d     (:)   ! mass flux from top soil layer due to negative water content in snow layers (kg H2O /s)
+
+     real(r8), pointer :: mflx_infl_col            (:)   ! infiltration source in top soil control volume (kg H2O /s)
+     real(r8), pointer :: mflx_dew_col             (:)   ! liquid+snow dew source in top soil control volume (kg H2O /s)
+     real(r8), pointer :: mflx_snowlyr_disp_col    (:)   ! mass flux to top soil layer due to disappearance of snow (kg H2O /s)
+     real(r8), pointer :: mflx_sub_snow_col        (:)   ! mass flux from top soil layer due to sublimation of snow (kg H2O /s)
+     real(r8), pointer :: mflx_et_col              (:,:) ! evapotranspiration sink from all soil coontrol volumes (kg H2O /s)
+     real(r8), pointer :: mflx_drain_col           (:,:) ! drainage from groundwater table (kg H2O /s)
+     real(r8), pointer :: mflx_recharge_col        (:)   ! recharge from soil column to unconfined aquifer (kg H2O /s)
+
    contains
  
      procedure, public  :: Init
@@ -208,9 +219,9 @@ contains
 
     allocate(this%qflx_gross_evap_soil_col (begc:endc))              ; this%qflx_gross_evap_soil_col (:)   = nan
     allocate(this%qflx_gross_infl_soil_col (begc:endc))              ; this%qflx_gross_infl_soil_col (:)   = nan
-    allocate(this%qflx_drain_vr_col        (begc:endc,1:nlevsoi))    ; this%qflx_drain_vr_col        (:,:) = nan
-    allocate(this%qflx_adv_col             (begc:endc,0:nlevsoi))    ; this%qflx_adv_col             (:,:) = nan
-    allocate(this%qflx_rootsoi_col         (begc:endc,1:nlevsoi))    ; this%qflx_rootsoi_col         (:,:) = nan
+    allocate(this%qflx_drain_vr_col        (begc:endc,1:nlevgrnd))   ; this%qflx_drain_vr_col        (:,:) = nan
+    allocate(this%qflx_adv_col             (begc:endc,0:nlevgrnd))   ; this%qflx_adv_col             (:,:) = nan
+    allocate(this%qflx_rootsoi_col         (begc:endc,1:nlevgrnd))   ; this%qflx_rootsoi_col         (:,:) = nan
     
     allocate(this%qflx_infl_col            (begc:endc))              ; this%qflx_infl_col            (:)   = nan
     allocate(this%qflx_surf_col            (begc:endc))              ; this%qflx_surf_col            (:)   = nan
@@ -249,6 +260,8 @@ contains
     allocate(this%qflx_snow2topsoi_col     (begc:endc))              ; this%qflx_snow2topsoi_col     (:)   = nan
     allocate(this%qflx_h2osfc2topsoi_col   (begc:endc))              ; this%qflx_h2osfc2topsoi_col   (:)   = nan
     
+    allocate(this%qflx_lateral_col         (begc:endc))              ; this%qflx_lateral_col         (:)   = 0._r8
+
     ncells = endc - begc + 1
     allocate(this%mflx_infl_col_1d(            ncells))              ; this%mflx_infl_col_1d         (:)   = nan
     allocate(this%mflx_dew_col_1d(             ncells))              ; this%mflx_dew_col_1d          (:)   = nan
@@ -260,7 +273,16 @@ contains
     ncells = (endc - begc + 1)*nlevgrnd
     allocate(this%mflx_et_col_1d(              ncells))              ; this%mflx_et_col_1d           (:)   = nan
     allocate(this%mflx_drain_col_1d(           ncells))              ; this%mflx_drain_col_1d        (:)   = nan
-    allocate(this%mflx_drain_perched_col_1d(   ncells))              ; this%mflx_drain_perched_col_1d(:)  = nan
+    allocate(this%mflx_drain_perched_col_1d(   ncells))              ; this%mflx_drain_perched_col_1d(:)   = nan
+
+    allocate(this%mflx_infl_col          (begc:endc))                ; this%mflx_infl_col            (:)   = nan
+    allocate(this%mflx_dew_col           (begc:endc))                ; this%mflx_dew_col             (:)   = nan
+    allocate(this%mflx_snowlyr_disp_col  (begc:endc))                ; this%mflx_snowlyr_disp_col    (:)   = nan
+    allocate(this%mflx_sub_snow_col      (begc:endc))                ; this%mflx_sub_snow_col        (:)   = nan
+    allocate(this%mflx_et_col            (begc:endc,1:nlevgrnd))     ; this%mflx_et_col              (:,:) = nan
+    allocate(this%mflx_drain_col         (begc:endc,1:nlevgrnd))     ; this%mflx_drain_col           (:,:) = nan
+    allocate(this%mflx_sub_snow_col      (begc:endc))                ; this%mflx_sub_snow_col        (:)   = nan
+    allocate(this%mflx_recharge_col      (begc:endc))                ; this%mflx_recharge_col        (:)   = nan
 
   end subroutine InitAllocate
 
@@ -536,17 +558,17 @@ contains
     this%dwb_col(bounds%begc:bounds%endc) = 0._r8
     ! needed for CNNLeaching 
     do c = bounds%begc, bounds%endc
-       l = col%landunit(c)
-       if (lun%itype(l) == istsoil .or. lun%itype(l) == istcrop) then
+       l = col_pp%landunit(c)
+       if (lun_pp%itype(l) == istsoil .or. lun_pp%itype(l) == istcrop) then
           this%qflx_drain_col(c) = 0._r8
           this%qflx_surf_col(c)  = 0._r8
        end if
     end do
 
     do p = bounds%begp, bounds%endp
-       l = pft%landunit(p)
+       l = veg_pp%landunit(p)
        
-       if (lun%itype(l)==istsoil) then
+       if (lun_pp%itype(l)==istsoil) then
           this%n_irrig_steps_left_patch(p) = 0
           this%irrig_rate_patch(p)         = 0.0_r8
        end if

@@ -190,8 +190,7 @@ module clm_varctl
   !----------------------------------------------------------
 
   logical, public :: use_ed = .false.            ! true => use  ED
-  ! (FATES-INTERF) CHANGE TO USE_ED_SPITFIRE
-  logical, public :: use_ed_spit_fire = .false.  ! true => use spitfire model
+  logical, public :: use_ed_spitfire = .false.  ! true => use spitfire model
 
   !----------------------------------------------------------
   !  BeTR switches
@@ -277,6 +276,11 @@ module clm_varctl
   ! moved hist_wrtch4diag from histFileMod.F90 to here - caused compiler error with intel
   ! namelist: write CH4 extra diagnostic output
   logical, public :: hist_wrtch4diag = .false.         
+  
+  !----------------------------------------------------------
+  ! ED/FATES
+  !----------------------------------------------------------
+  character(len=fname_len), public :: fates_paramfile  = ' '
 
   !----------------------------------------------------------
   ! Migration of CPP variables
@@ -296,13 +300,21 @@ module clm_varctl
   logical, public :: use_vancouver       = .false.
   logical, public :: use_mexicocity      = .false.
   logical, public :: use_noio            = .false.
+  logical, public :: use_var_soil_thick  = .false.
 
   !----------------------------------------------------------
   ! VSFM switches
   !----------------------------------------------------------
   logical          , public :: use_vsfm                    = .false.
-  character(len=32), public :: vsfm_satfunc_type           = 'smooth_brooks_corey_bz3'
   logical          , public :: vsfm_use_dynamic_linesearch = .false.
+  logical          , public :: vsfm_include_seepage_bc     = .false.
+  character(len=32), public :: vsfm_satfunc_type           = 'smooth_brooks_corey_bz3'
+  character(len=32), public :: vsfm_lateral_model_type     = 'none'
+
+  !----------------------------------------------------------
+  ! PETSc-based thermal model switches
+  !----------------------------------------------------------
+  logical, public :: use_petsc_thermal_model = .false.
 
   !----------------------------------------------------------
   ! To retrieve namelist
@@ -315,6 +327,12 @@ module clm_varctl
  !-----------------------------------------------------------------------
  ! nutrient competition (nu_com), default is relative demand approach (RD)
  character(len=15), public :: nu_com = 'RD'
+
+  !-----------------------------------------------------------------------
+  ! Lateral grid connectivity
+  !-----------------------------------------------------------------------
+  logical, public            :: lateral_connectivity  = .false.
+  character(len=256), public :: domain_decomp_type    = 'round_robin'
 
   !-----------------------------------------------------------------------
   ! bgc & pflotran interface

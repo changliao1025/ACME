@@ -23,7 +23,7 @@ module CNDecompCascadeCNMod
   use CanopyStateType        , only : canopystate_type
   use TemperatureType        , only : temperature_type 
   use ch4Mod                 , only : ch4_type
-  use ColumnType             , only : col                
+  use ColumnType             , only : col_pp                
   !
   implicit none
   save
@@ -678,7 +678,7 @@ contains
      !-----------------------------------------------------------------------
 
      associate(                                             &
-          dz             => col%dz                        , & ! Input:  [real(r8) (:,:)   ]  soil layer thickness (m)                               
+          dz             => col_pp%dz                        , & ! Input:  [real(r8) (:,:)   ]  soil layer thickness (m)                               
 
           sucsat         => soilstate_vars%sucsat_col     , & ! Input:  [real(r8) (:,:)   ]  minimum soil suction (mm)                              
           soilpsi        => soilstate_vars%soilpsi_col    , & ! Input:  [real(r8) (:,:)   ]  soil water potential in each soil layer (MPa)          
@@ -888,7 +888,7 @@ contains
           deallocate(fr)
 
        else
-
+          
           ! calculate rate constant scalar for soil temperature
           ! assuming that the base rate constants are assigned for non-moisture
           ! limiting conditions at 25 C. 
@@ -1047,9 +1047,11 @@ contains
              if ( decomp_cascade_con%spinup_factor(i_litr2) > 1._r8) decomp_k(c,j,i_litr2) = decomp_k(c,j,i_litr2)  &
 	       / cnstate_vars%scalaravg_col(c)
              if ( decomp_cascade_con%spinup_factor(i_litr3) > 1._r8) decomp_k(c,j,i_litr3) = decomp_k(c,j,i_litr3)  &
-	       / cnstate_vars%scalaravg_col(c)
-             if ( decomp_cascade_con%spinup_factor(i_cwd)   > 1._r8) decomp_k(c,j,i_cwd)   = decomp_k(c,j,i_cwd)    &
-	       / cnstate_vars%scalaravg_col(c)
+                  / cnstate_vars%scalaravg_col(c)
+             if ( .not. use_ed ) then
+                if ( decomp_cascade_con%spinup_factor(i_cwd)   > 1._r8) decomp_k(c,j,i_cwd)   = decomp_k(c,j,i_cwd)    &
+                     / cnstate_vars%scalaravg_col(c)
+             endif
              if ( decomp_cascade_con%spinup_factor(i_soil1) > 1._r8) decomp_k(c,j,i_soil1) = decomp_k(c,j,i_soil1)  &
 	       / cnstate_vars%scalaravg_col(c)
              if ( decomp_cascade_con%spinup_factor(i_soil2) > 1._r8) decomp_k(c,j,i_soil2) = decomp_k(c,j,i_soil2)  &
