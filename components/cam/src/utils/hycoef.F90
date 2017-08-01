@@ -1,7 +1,7 @@
 module hycoef
 
 use shr_kind_mod, only: r8 => shr_kind_r8
-use spmd_utils,   only: masterproc
+use spmd_utils,   only: masterproc, iam !AaronDonahue added iam
 use pmgrid,       only: plev, plevp
 use cam_logfile,  only: iulog
 use cam_abortutils,   only: endrun
@@ -91,6 +91,7 @@ subroutine hycoef_init(file)
 
    ! read hybrid coeficients
    call hycoef_read(file)
+  print *, 'ASD hycoef p0: ', iam
 
    ! Set layer locations
    nprlev = 0
@@ -181,6 +182,7 @@ subroutine hycoef_init(file)
         positive='down',                                                    &
         standard_name='atmosphere_hybrid_sigma_pressure_coordinate',        &
         formula_terms=formula_terms)
+  print *, 'ASD hycoef p1: ', iam
 
    formula_terms%a_name       =  'hyai'
    formula_terms%a_long_name  =  'hybrid A coefficient at layer interfaces'
@@ -199,7 +201,8 @@ subroutine hycoef_init(file)
         positive='down',                                                    &
         standard_name='atmosphere_hybrid_sigma_pressure_coordinate',        &
         formula_terms=formula_terms)
-
+  print *, 'ASD hycoef p2: ', iam
+   
    if (masterproc) then
       write(iulog,'(a)')' Layer Locations (*1000) '
       do k=1,plev
