@@ -108,32 +108,24 @@ module glb_verif_smry
   logical                 :: timestep_smry_on = .true.  ! get smry for the current time step?
                                                         ! re-evaluated during phys_timestep_init.
 
-  integer :: glb_verif_smry_frq =   4   ! Namelist variable. How often is smry be reported?
-                                        ! Negative: unit is hours.
-                                        ! Positive: unit is time steps.
+  integer,public :: glb_verif_smry_frq =   4   ! Namelist variable. How often is smry be reported?
+                                               ! Negative: unit is hours.
+                                               ! Positive: unit is time steps.
 
-  integer :: glb_verif_smry_level = 0   ! Namelist variable.
-                                        ! -1: no smry.
-                                        !  0: provide one-line summary for each monitored field if 
-                                        !     there is any value exceeding the corresponding threshold; 
-                                        !     report on # of violations and the extreme values.
-                                        !  1: like 0, but also report on the locations of extreme values.
-                                        !  2: like 1, but also provide summary even if the # of violations
-                                        !     is zero. This option is provided for debugging purposes, 
-                                        !     e.g., to get an idea of the typical magnitude of extremes,
-                                        !     and to avoid inconsistency between field names specified for
-                                        !     "add_smry_field" and "get_chunk_smry"
-                                        !  3: like 2, but let provide summary for every chunk. This is 
-                                        !     similar to the original implementation in QNEG3 and QNEG4. 
+  integer,public :: glb_verif_smry_level = 0   ! Namelist variable.
+                                               ! -1: no smry.
+                                               !  0: provide one-line summary for each monitored field if 
+                                               !     there is any value exceeding the corresponding threshold; 
+                                               !     report on # of violations and the extreme values.
+                                               !  1: like 0, but also report on the locations of extreme values.
+                                               !  2: like 1, but also provide summary even if the # of violations
+                                               !     is zero. This option is provided for debugging purposes, 
+                                               !     e.g., to get an idea of the typical magnitude of extremes,
+                                               !     and to avoid inconsistency between field names specified for
+                                               !     "add_smry_field" and "get_chunk_smry"
+                                               !  3: like 2, but let provide summary for every chunk. This is 
+                                               !     similar to the original implementation in QNEG3 and QNEG4. 
                                 
-#ifdef UNIT_TEST
-  logical :: l_print_always = .true.    ! always print message in log file 
-                                        ! (even when there are no
-                                        ! values exeeding threshold)
-#else
-  logical :: l_print_always = .false. 
-#endif
-
   !-------------------------------------------------------------------
   ! The variable that contain a list of fields (on all processes)
   ! and the global summary (on the master proc only)
@@ -343,7 +335,7 @@ contains
 
     integer, intent(in) :: nstep
 
-    timestep_smry_on = (glb_verif_smry_level .gt. 0) .and. &
+    timestep_smry_on = (glb_verif_smry_level .ge. 0) .and. &
                         mod(nstep,glb_verif_smry_frq) == 0
 
   end subroutine timestep_smry_init
@@ -464,7 +456,7 @@ contains
   
     ! Send message to log file
   
-    if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
+    if ( (glb_verif_smry_level.ge.3) .and. (chunk_smry(ifld)%count.gt.0) ) then
        write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
@@ -574,7 +566,7 @@ contains
 
     ! Send message to log file
   
-    if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
+    if ( (glb_verif_smry_level.ge.3) .and. (chunk_smry(ifld)%count.gt.0) ) then
        write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
@@ -643,7 +635,7 @@ contains
 
     ! Send message to log file
   
-    if ( l_print_always .and. (domain_smry%count.gt.0) ) then
+    if ( (glb_verif_smry_level.ge.3) .and. (domain_smry%count.gt.0) ) then
        write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'domain_smry: ', &
          trim(domain_smry%field_name),'('//trim(domain_smry%field_unit)//')',': ', &
