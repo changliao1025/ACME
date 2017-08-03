@@ -46,8 +46,8 @@ module glb_verif_smry
   public get_global_smry
 
   !-------------------------------------------------------------------
-  ! Define our own "short string" length. SHR_KIND_CS is too long (80)
-  integer,private,parameter :: shortchar = 32
+  ! Define our own "short string" length. SHR_KIND_CS is very long (80)
+  integer,private,parameter :: shortchar = 36 
 
   ! Name of this module that will appear in error messages
   character(len=shortchar),private,parameter :: THIS_MODULE = 'glb_verif_smry'
@@ -294,12 +294,12 @@ contains
        write(iulog,*)'GLB_VERIF_SMRY: current_number_of_smry_fields = ',current_number_of_smry_fields 
        write(iulog,*)'GLB_VERIF_SMRY: '
 
-       write(iulog,'(a19,a8, a50,a12, a10,a11,a7)')  &
+       write(iulog,'(a19,a8, a40,a12, a10,a11,a7)')  &
                      'GLB_VERIF_SMRY:','Index', 'Field','Unit', 'Compr.','Threshold','Fixer'
 
        do ifld = 1,current_number_of_smry_fields
 
-          write(iulog,'(a19,i8, a50,a12, i10,e11.3,i7)')                &
+          write(iulog,'(a19,i8, a40,a12, i10,e11.3,i7)')                &
                       'GLB_VERIF_SMRY:',ifld,                               &
                       trim(domain_smry_1d(ifld)%field_name),                &
                       trim(domain_smry_1d(ifld)%field_unit),                &
@@ -425,7 +425,7 @@ contains
     ! Send message to log file
   
     if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
-       write(iulog,'(2x,a,a50,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
+       write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -530,7 +530,7 @@ contains
     ! Send message to log file
   
     if ( l_print_always .and. (chunk_smry(ifld)%count.gt.0) ) then
-       write(iulog,'(2x,a,a50,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
+       write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
          chunk_smry(ifld)%count, ' values ',trim(cmpr_type_char), chunk_smry(ifld)%threshold, &
@@ -599,7 +599,7 @@ contains
     ! Send message to log file
   
     if ( l_print_always .and. (domain_smry%count.gt.0) ) then
-       write(iulog,'(2x,a,a50,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
+       write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'domain_smry: ', &
          trim(domain_smry%field_name),'('//trim(domain_smry%field_unit)//')',': ', &
          domain_smry%count, ' values ',trim(cmpr_type_char), domain_smry%threshold, &
@@ -754,7 +754,7 @@ contains
         any(global_smry_1d(1:current_number_of_smry_fields)%count.gt.0) ) then
 
        write(iulog,*)
-       write(iulog,'(a19,a8, a50,a12, a10,a11,a2,a8, a13,a7, a9,a9,a5,a10,a5)')  &
+       write(iulog,'(a19,a8, a40,a12, a10,a11,a2,a8, a13,a7, a9,a9,a5,a10,a5)')  &
                    'GLB_VERIF_SMRY:','nstep',  &
                    'Field','Unit',      &
                    'Cmpr.','Threshold','','Count',  &
@@ -785,7 +785,7 @@ contains
 
       if (masterproc .and. global_smry_1d(ii)%count.gt.0 ) then
 
-        write(iulog,'(a19,i8, a50,a12, a10,e11.3,a2, i8, e13.3,i7)') &
+        write(iulog,'(a19,i8, a40,a12, a10,e11.3,a2, i8, e13.3,i7)') &
                     'GLB_VERIF_SMRY:',nstep, &
                     trim(global_smry_1d(ii)%field_name),             &
                     trim(global_smry_1d(ii)%field_unit),             &
@@ -801,7 +801,7 @@ contains
       if ( l_global_smry_verbose .and. global_smry_1d(ii)%count.gt.0 ) then
       if ( global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val ) then
 
-         write(iulog,'(a19,i8, a50,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
+         write(iulog,'(a19,i8, a40,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
                      'GLB_VERIF_SMRY_VB:',nstep, &
                      trim(domain_smry_1d(ii)%field_name),                     &
                      trim(domain_smry_1d(ii)%field_unit) ,                     &

@@ -884,7 +884,7 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, chunk_smry_2d, domain_smry_
 
     ! Add additional smry field(s)
     !--------------------------------
-    call add_smry_field('LHFLX_EXCESS_qneg4_TPHYSAC','kg/m2/s',SMALLER_THAN,0._r8)
+    call add_smry_field('LHFLX_EXCESS @QNEG4_TPHYSAC','kg/m2/s',SMALLER_THAN,0._r8)
 
     ! Initialize global statistics
     !--------------------------------

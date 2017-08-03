@@ -549,13 +549,13 @@ end subroutine check_energy_get_integrals
     if (present(chunk_smry)) then
 
     call t_startf('get_chunk_smry')
-    call get_chunk_smry( 'TOT_ENERGY_REL_ERR_'//name//'_check_energy_chng', &
+    call get_chunk_smry( 'TE_RELERR @'//name, &
                          ncol, te_rer(:ncol),state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
     call t_stopf('get_chunk_smry')
 
     !----
     call t_startf('get_chunk_smry')
-    call get_chunk_smry( 'TOT_WATER_REL_ERR_'//name//'_check_energy_chng', &
+    call get_chunk_smry( 'TW_RELERR @'//name, &
                          ncol, tw_rer(:ncol),state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
     call t_stopf('get_chunk_smry')
 

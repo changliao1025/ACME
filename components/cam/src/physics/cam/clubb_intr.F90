@@ -600,11 +600,11 @@ end subroutine clubb_init_cnst
     !    in the loop below, fixer is set to NO_FIX.
     ! ------------------------------------------------------------------------ !
     do macmic_it = 1,cld_macmic_num_steps
-      write(routine_name,'(a,i2.2)') 'clubb_macmic_substep_',macmic_it
+      write(routine_name,'(a,i2.2)') 'clubb_macmic_',macmic_it
 
       do m = 1,pcnst
         if (lq(m) .and. .not.any(trim(cnst_name(m)).eq.(/"NUMLIQ","NUMICE","NUMRAI","NUMSNO","DMS"/)) ) &
-        call add_smry_field(trim(cnst_name(m))//'_'//trim(routine_name), '(mr)', &
+        call add_smry_field(trim(cnst_name(m))//' @'//trim(routine_name), '(mr)', &
                             SMALLER_THAN, qmin(m), fixer=NO_FIX)
       end do
     end do
@@ -617,7 +617,7 @@ end subroutine clubb_init_cnst
     !    in the loop below, fixer is set to NO_FIX.
     ! ------------------------------------------------------------------------ !
     do m = 1,pcnst
-       call add_smry_field(trim(cnst_name(m))//'_clubb_surface','(mr)',SMALLER_THAN,qmin(m),fixer=NO_FIX)
+       call add_smry_field(trim(cnst_name(m))//' @clubb_surface','(mr)',SMALLER_THAN,qmin(m),fixer=NO_FIX)
     end do
 
     ! ----------------------------------------------------------------- !
@@ -1264,7 +1264,7 @@ end subroutine clubb_init_cnst
 
    call t_startf('clubb_tend_cam_init')
 
-   write(routine_name,'(a,i2.2)') 'clubb_macmic_substep_',macmic_it
+   write(routine_name,'(a,i2.2)') 'clubb_macmic_',macmic_it
 
    frac_limit = 0.01_r8
    ic_limit   = 1.e-12_r8
