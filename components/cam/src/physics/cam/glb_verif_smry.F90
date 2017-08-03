@@ -348,9 +348,9 @@ contains
     character(len=*),  intent(in)    :: fldname
     integer,           intent(in)    :: ncol                 ! number of columns packed in array
     integer,           intent(in)    :: nlev                 ! number of vertical levels
-    real(r8),          intent(inout) :: array_in(ncol,nlev)  ! input array of values to be checked
-    real(r8),          intent(in)    :: lat(ncol)
-    real(r8),          intent(in)    :: lon(ncol)
+    real(r8),          intent(inout) :: array_in(:,:)        ! input array of values to be checked
+    real(r8),          intent(in)    :: lat(:)
+    real(r8),          intent(in)    :: lon(:)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
     integer,           intent(out)   :: ifld
 
@@ -453,10 +453,10 @@ contains
                                         lat, lon, chunk_smry, ifld )
 
     character(len=*),  intent(in)    :: fldname
-    integer,           intent(in)    :: ncol              ! number of columns packed in array
-    real(r8),          intent(inout) :: array_in(ncol)    ! input array of values to be checked
-    real(r8),          intent(in)    :: lat(ncol)
-    real(r8),          intent(in)    :: lon(ncol)
+    integer,           intent(in)    :: ncol           ! number of columns packed in array
+    real(r8),          intent(inout) :: array_in(:)    ! input array of values to be checked
+    real(r8),          intent(in)    :: lat(:)
+    real(r8),          intent(in)    :: lon(:)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
     integer,           intent(out)   :: ifld
 
