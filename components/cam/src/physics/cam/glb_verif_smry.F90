@@ -39,15 +39,16 @@ module glb_verif_smry
   private
 
   public tp_stat_smry
-  public global_smry_init
   public add_smry_field
+  public global_smry_init
+  public timestep_smry_init
   public get_smry_field_idx
   public get_chunk_smry
   public get_global_smry
 
   !-------------------------------------------------------------------
   ! Define our own "short string" length. SHR_KIND_CS is very long (80)
-  integer,private,parameter :: shortchar = 36 
+  integer,private,parameter :: shortchar = 36
 
   ! Name of this module that will appear in error messages
   character(len=shortchar),private,parameter :: THIS_MODULE = 'glb_verif_smry'
@@ -104,6 +105,27 @@ module glb_verif_smry
   character(len=longchar) :: msg 
   logical                 :: l_smry_arrays_allocated = .false.
 
+  logical                 :: timestep_smry_on = .true.  ! get smry for the current time step?
+                                                        ! re-evaluated during phys_timestep_init.
+
+  integer :: glb_verif_smry_frq =   4   ! Namelist variable. How often is smry be reported?
+                                        ! Negative: unit is hours.
+                                        ! Positive: unit is time steps.
+
+  integer :: glb_verif_smry_level = 0   ! Namelist variable.
+                                        ! -1: no smry.
+                                        !  0: provide one-line summary for each monitored field if 
+                                        !     there is any value exceeding the corresponding threshold; 
+                                        !     report on # of violations and the extreme values.
+                                        !  1: like 0, but also report on the locations of extreme values.
+                                        !  2: like 1, but also provide summary even if the # of violations
+                                        !     is zero. This option is provided for debugging purposes, 
+                                        !     e.g., to get an idea of the typical magnitude of extremes,
+                                        !     and to avoid inconsistency between field names specified for
+                                        !     "add_smry_field" and "get_chunk_smry"
+                                        !  3: like 2, but let provide summary for every chunk. This is 
+                                        !     similar to the original implementation in QNEG3 and QNEG4. 
+                                
 #ifdef UNIT_TEST
   logical :: l_print_always = .true.    ! always print message in log file 
                                         ! (even when there are no
@@ -313,6 +335,19 @@ contains
 
   end subroutine global_smry_init
 
+  !--------------------------------------------------------------------------------
+  ! Description:
+  ! Decide whether chunk/global summary should be collected at this time step
+  !--------------------------------------------------------------------------------
+  subroutine timestep_smry_init( nstep )
+
+    integer, intent(in) :: nstep
+
+    timestep_smry_on = (glb_verif_smry_level .gt. 0) .and. &
+                        mod(nstep,glb_verif_smry_frq) == 0
+
+  end subroutine timestep_smry_init
+
   !---------------------------------------------------------------------
   ! Description:
   !   Find a field on the global summary list and return the index.
@@ -362,6 +397,11 @@ contains
     character(len=shortchar) :: cmpr_type_char
   
     !-------------------------------------------------------------------------
+    if (.not.timestep_smry_on) return
+ 
+    !--------------------------------
+    ! Find field on the master list.
+
     call t_startf('get_smry_field_idx')
     call get_smry_field_idx( fldname, ifld )
     call t_stopf('get_smry_field_idx')
@@ -468,6 +508,11 @@ contains
     character(len=shortchar) :: cmpr_type_char
 
     !-------------------------------------------------------------------------
+    if (.not.timestep_smry_on) return
+
+    !--------------------------------
+    ! Find field on the master list
+
     call t_startf('get_smry_field_idx')
     call get_smry_field_idx( fldname, ifld )
     call t_stopf('get_smry_field_idx')
@@ -650,6 +695,7 @@ contains
 #endif
     character(len=shortchar) :: cmpr_type_char
 
+    if (.not.timestep_smry_on) return
     if (current_number_of_smry_fields.lt.1) return
 
     !--------------------------------------------

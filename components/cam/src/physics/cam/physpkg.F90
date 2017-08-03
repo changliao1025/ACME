@@ -984,7 +984,7 @@ subroutine phys_run1(phys_state, ztodt, phys_tend, chunk_smry_2d, pbuf2d, cam_in
        ! Advance time information
        !-----------------------------------------------------------------------
 
-       call phys_timestep_init( phys_state, cam_out, pbuf2d)
+       call phys_timestep_init( phys_state, cam_out, pbuf2d, nstep)
 
        call t_stopf ('physpkg_st1')
 
@@ -2661,7 +2661,7 @@ end if ! l_rad
 
 end subroutine tphysbc
 
-subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
+subroutine phys_timestep_init(phys_state, cam_out, pbuf2d, nstep)
 !-----------------------------------------------------------------------------------
 !
 ! Purpose: The place for parameterizations to call per timestep initializations.
@@ -2696,6 +2696,7 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
   use aircraft_emit,       only: aircraft_emit_adv
   use prescribed_volcaero, only: prescribed_volcaero_adv
   use nudging,             only: Nudge_Model,nudging_timestep_init
+  use glb_verif_smry,      only: timestep_smry_init
 
   use seasalt_model,       only: advance_ocean_data, has_mam_mom
 
@@ -2705,6 +2706,7 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
   type(cam_out_t),     intent(inout), dimension(begchunk:endchunk) :: cam_out
   
   type(physics_buffer_desc), pointer                 :: pbuf2d(:,:)
+  integer, intent(in) :: nstep
 
   !-----------------------------------------------------------------------------
 
@@ -2769,6 +2771,9 @@ subroutine phys_timestep_init(phys_state, cam_out, pbuf2d)
   ! Update Nudging values, if needed
   !----------------------------------
   if(Nudge_Model) call nudging_timestep_init(phys_state)
+
+  ! For glb_verif_smry
+  call timestep_smry_init( nstep )
 
 end subroutine phys_timestep_init
 
