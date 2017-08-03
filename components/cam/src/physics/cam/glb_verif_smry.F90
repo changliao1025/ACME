@@ -29,7 +29,7 @@ module glb_verif_smry
 !------------------------------------------------------------------------------------
 
   use shr_kind_mod,   only: r8=>SHR_KIND_R8
-  use shr_kind_mod,   only: shortchar=>SHR_KIND_CS, longchar=>SHR_KIND_CL
+  use shr_kind_mod,   only: longchar=>SHR_KIND_CL
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
   use physconst,      only: pi
@@ -45,6 +45,11 @@ module glb_verif_smry
   public get_chunk_smry
   public get_global_smry
 
+  !-------------------------------------------------------------------
+  ! Define our own "short string" length. SHR_KIND_CS is too long (80)
+  integer,private,parameter :: shortchar = 32
+
+  ! Name of this module that will appear in error messages
   character(len=shortchar),private,parameter :: THIS_MODULE = 'glb_verif_smry'
 
   !----------------------------------------------
