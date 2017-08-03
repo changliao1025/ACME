@@ -321,7 +321,7 @@ contains
 
     fldidx = INT_UNDEF
     do ii = 1,current_number_of_smry_fields 
-       if (trim(global_smry_1d(ii)%field_name) == trim(fldname) ) then
+       if (global_smry_1d(ii)%field_name == fldname ) then
           fldidx = ii
           exit
        end if
