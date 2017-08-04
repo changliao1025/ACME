@@ -24,7 +24,7 @@ module glb_verif_smry
 !
 ! First  version by Hui Wan (PNNL, 2017-05). 
 !  - MPI_gather was used for global communication.
-! Second version by Hui Wan (PNNL, 2017-05). 
+! Second version by Hui Wan (PNNL, 2017-07). 
 !  - Replace MPI_gather by MPI_allreduce;
 !------------------------------------------------------------------------------------
 
@@ -47,12 +47,31 @@ module glb_verif_smry
   public get_global_smry
 
   !-------------------------------------------------------------------
-  ! Define our own "short string" length. SHR_KIND_CS is very long (80)
-  integer,private,parameter :: shortchar = 36
+  ! Namelist switches for users (see also phys_control.F90) 
+  !-------------------------------------------------------------------
+  ! Frequency of smry report: 
+  ! Negative: unit is hours.
+  ! Positive: unit is time steps.
 
-  ! Name of this module that will appear in error messages
-  character(len=shortchar),private,parameter :: THIS_MODULE = 'glb_verif_smry'
+  integer,public :: glb_verif_smry_frq =  -6   
 
+  ! Level of detail of the summary report.
+  ! -1: no smry.
+  !  0: provide a one-line summary for each registered field if 
+  !     there is any value exceeding the corresponding threshold; 
+  !     report on # of violations and the extreme values.
+  !  1: in addition to 0, also report on the locations of extreme values.
+  !  2: in addition to 1, print out summary for every chunk of the 
+  !     physics grid. This is similar to the original implementation 
+  !     in QNEG3 and QNEG4. 
+
+  integer,public :: glb_verif_smry_level = 0
+
+  ! Print summary for all registered fields regardless of the total count of violations. 
+  ! When set to .false., summary is printed only for fields with counts >0.
+
+  logical,public :: l_print_smry_for_all_fields = .false.
+                                
   !----------------------------------------------
   ! Types of comparison supported by this module
 
@@ -67,11 +86,21 @@ module glb_verif_smry
   integer,public,parameter :: NO_FIX   = 0
   integer,public,parameter :: CLIPPING = 1
 
+  !-------------------------------------------------------------------
+  ! Define our own "short string" length. SHR_KIND_CS is very long (80)
+  integer,private,parameter :: shortchar = 36
+
+  ! Name of this module that will appear in error messages
+  character(len=shortchar),private,parameter :: THIS_MODULE = 'glb_verif_smry'
+
   !----------------
+  ! Constants
+
   integer, parameter :: INT_UNDEF = -999
   real(r8),parameter :: FLT_UNDEF = -999._r8
 
   real(r8),parameter :: rad2deg = 180._r8/pi
+
   !----------------
   ! Data structure 
 
@@ -95,7 +124,9 @@ module glb_verif_smry
     integer  :: extreme_lev  = INT_UNDEF
 
   end type tp_stat_smry
+
   !-------------------------------
+  ! Misc module variables
 
   integer,parameter       :: max_number_of_smry_fields = 1000
   integer,public          :: current_number_of_smry_fields = 0
@@ -108,25 +139,8 @@ module glb_verif_smry
   logical                 :: timestep_smry_on = .true.  ! get smry for the current time step?
                                                         ! re-evaluated during phys_timestep_init.
 
-  integer,public :: glb_verif_smry_frq =  -6   ! Namelist variable. How often is smry be reported?
-                                               ! Negative: unit is hours.
-                                               ! Positive: unit is time steps.
-
-  integer,public :: glb_verif_smry_level = 0   ! Namelist variable.
-                                               ! -1: no smry.
-                                               !  0: provide one-line summary for each monitored field if 
-                                               !     there is any value exceeding the corresponding threshold; 
-                                               !     report on # of violations and the extreme values.
-                                               !  1: in addition to 1, also report on the locations of extreme values.
-                                               !  2: in addition to 1, provide summary for every chunk. This is 
-                                               !     similar to the original implementation in QNEG3 and QNEG4. 
-
-  logical,public :: l_print_smry_for_all_fields = .false.   ! print summary regardless also when there are no
-                                                            ! values exceeding threshold.
-                                
   !-------------------------------------------------------------------
-  ! The variable that contain a list of fields (on all processes)
-  ! and the global summary (on the master proc only)
+  ! List of registered fields 
 
   type(tp_stat_smry) :: global_smry_1d(max_number_of_smry_fields)
 
@@ -135,8 +149,6 @@ module glb_verif_smry
     module procedure get_chunk_smry_1_lev_real   ! for fields that do not have a vertical distribution
     module procedure get_chunk_smry_m_lev_real   ! for fields with multiple vertical levels
   end interface get_chunk_smry
-
-
 
 contains
 
@@ -166,7 +178,7 @@ contains
         call endrun(trim(msg))
     end if
 
-    ! Check if the same field from the same procedure has already been registered.
+    ! Check if the field has already been registered.
 
     do ii = 1,current_number_of_smry_fields
        if (trim(global_smry_1d(ii)%field_name) == trim(fldname) ) then
