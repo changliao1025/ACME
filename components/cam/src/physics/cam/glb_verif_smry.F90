@@ -50,13 +50,14 @@ module glb_verif_smry
   ! Namelist switches for users (see also phys_control.F90) 
   !-------------------------------------------------------------------
   ! Frequency of smry report: 
-  ! Negative: unit is hours.
-  ! Positive: unit is time steps.
+  !  Negative: unit is hours.
+  !  Positive: unit is time steps.
 
   integer,public :: glb_verif_smry_frq =  -6   
 
-  ! Level of detail of the summary report.
-  ! -1: no smry.
+  !-------------------------------------------------------------------
+  ! Level of detail included in the summary messages.
+  ! <0: no smry.
   !  0: provide a one-line summary for each registered field if 
   !     there is any value exceeding the corresponding threshold; 
   !     report on # of violations and the extreme values.
@@ -67,6 +68,7 @@ module glb_verif_smry
 
   integer,public :: glb_verif_smry_level = 0
 
+  !-------------------------------------------------------------------
   ! Print summary for all registered fields regardless of the total count of violations. 
   ! When set to .false., summary is printed only for fields with counts >0.
 
