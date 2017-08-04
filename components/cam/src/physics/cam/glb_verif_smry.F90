@@ -108,7 +108,7 @@ module glb_verif_smry
   logical                 :: timestep_smry_on = .true.  ! get smry for the current time step?
                                                         ! re-evaluated during phys_timestep_init.
 
-  integer,public :: glb_verif_smry_frq =   4   ! Namelist variable. How often is smry be reported?
+  integer,public :: glb_verif_smry_frq =  -6   ! Namelist variable. How often is smry be reported?
                                                ! Negative: unit is hours.
                                                ! Positive: unit is time steps.
 
@@ -117,8 +117,8 @@ module glb_verif_smry
                                                !  0: provide one-line summary for each monitored field if 
                                                !     there is any value exceeding the corresponding threshold; 
                                                !     report on # of violations and the extreme values.
-                                               !  1: like 0, but also report on the locations of extreme values.
-                                               !  2: like 2, but provide summary for every chunk. This is 
+                                               !  1: in addition to 1, also report on the locations of extreme values.
+                                               !  2: in addition to 1, provide summary for every chunk. This is 
                                                !     similar to the original implementation in QNEG3 and QNEG4. 
 
   logical,public :: l_print_smry_for_all_fields = .false.   ! print summary regardless also when there are no

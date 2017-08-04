@@ -158,7 +158,7 @@ logical :: l_rad           = .true.
 contains
 !======================================================================= 
 
-subroutine phys_ctl_readnl(nlfile)
+subroutine phys_ctl_readnl(nlfile,dtime)
 
    use namelist_utils,  only: find_group_name
    use units,           only: getunit, freeunit
@@ -166,6 +166,7 @@ subroutine phys_ctl_readnl(nlfile)
    use cam_control_mod, only: cam_ctrl_set_physics_type
 
    character(len=*), intent(in) :: nlfile  ! filepath for file containing namelist input
+   integer,          intent(in) :: dtime   ! model time step in seconds
 
    ! Local variables
    integer :: unitn, ierr
@@ -280,6 +281,9 @@ subroutine phys_ctl_readnl(nlfile)
 #endif
 
    call cam_ctrl_set_physics_type(cam_physpkg)
+
+   ! unit conversion for global smry frequency
+   if (glb_verif_smry_frq<0) glb_verif_smry_frq = nint((-glb_verif_smry_frq*3600._r8)/dtime)
 
    ! Error checking:
 

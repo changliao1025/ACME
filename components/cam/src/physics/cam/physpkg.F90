@@ -1145,7 +1145,6 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, chunk_smry_2d, domain_smry_1d
     use check_energy,   only: ieflx_gmean 
     use check_energy,   only: check_ieflx_fix 
     use phys_control,   only: ieflx_opt !!l_ieflx_fix
-    use phys_control,   only: l_global_smry_verbose
     !
     ! Input arguments
     !
@@ -1243,7 +1242,7 @@ subroutine phys_run2(phys_state, ztodt, phys_tend, chunk_smry_2d, domain_smry_1d
 #endif
 
     call t_startf('get_global_smry')
-    call get_global_smry( chunk_smry_2d, domain_smry_1d, nstep, l_global_smry_verbose)
+    call get_global_smry( chunk_smry_2d, domain_smry_1d, nstep)
     call t_stopf('get_global_smry')
 
     call t_startf ('carma_accumulate_stats')
