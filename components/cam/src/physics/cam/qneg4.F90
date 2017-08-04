@@ -64,8 +64,6 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
 !
    real(r8):: worst             ! biggest violator
    real(r8):: excess(pcols)     ! Excess downward sfc latent heat flux
-
-   integer :: istat             ! smry field ID
 !
 !-----------------------------------------------------------------------
 !
@@ -117,7 +115,7 @@ subroutine qneg4 (subnam  ,lchnk   ,ncol    ,ztodt   ,        &
 
   call t_startf('get_chunk_smry')
   call get_chunk_smry('LHFLX_EXCESS @QNEG4_'//trim(subnam), &
-                      ncol, excess(:ncol),lat(:ncol),lon(:ncol),chunk_smry(:),istat)
+                      ncol, excess(:ncol),lat(:ncol),lon(:ncol),chunk_smry(:) )
   call t_stopf('get_chunk_smry')
 !---------------------------------------------------------
    return

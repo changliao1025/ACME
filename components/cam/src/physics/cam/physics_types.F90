@@ -226,7 +226,6 @@ contains
     type(tp_stat_smry),intent(inout), optional :: chunk_smry(:)
 !
 !---------------------------Local storage-------------------------------
-    integer :: istat
     integer :: i,k,m                               ! column,level,constituent indices
     integer :: ixcldice, ixcldliq                  ! indices for CLDICE and CLDLIQ
     integer :: ixnumice, ixnumliq
@@ -354,7 +353,7 @@ contains
              if (present(chunk_smry)) then
                 call t_startf('get_chunk_smry')
                 call get_chunk_smry( trim(cnst_name(m))//' @'//trim(ptend%name), ncol, pver, state%q(:ncol,:,m), &
-                                     state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
+                                     state%lat(:ncol), state%lon(:ncol), chunk_smry(:) )
                 call t_stopf('get_chunk_smry')
              end if
              !HuiWan:2017-07 ===

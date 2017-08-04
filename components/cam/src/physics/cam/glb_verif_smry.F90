@@ -391,7 +391,7 @@ contains
     real(r8),          intent(in)    :: lat(:)
     real(r8),          intent(in)    :: lon(:)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
-    integer,           intent(out)   :: ifld
+    integer, optional, intent(out)   :: ifld
 
     ! Local variables
 
@@ -504,7 +504,7 @@ contains
     real(r8),          intent(in)    :: lat(:)
     real(r8),          intent(in)    :: lon(:)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
-    integer,           intent(out)   :: ifld
+    integer, optional, intent(out)   :: ifld
 
     ! Local variables
 

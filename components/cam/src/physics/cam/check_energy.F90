@@ -437,7 +437,6 @@ end subroutine check_energy_get_integrals
     real(r8) :: ws(state%ncol)                     ! vertical integral of snow
     integer :: ixrain
     integer :: ixsnow
-    integer :: istat
 !-----------------------------------------------------------------------
 
     lchnk = state%lchnk
@@ -550,13 +549,13 @@ end subroutine check_energy_get_integrals
 
     call t_startf('get_chunk_smry')
     call get_chunk_smry( 'TE_RELERR @'//name, &
-                         ncol, te_rer(:ncol),state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
+                         ncol, te_rer(:ncol),state%lat(:ncol), state%lon(:ncol), chunk_smry(:) )
     call t_stopf('get_chunk_smry')
 
     !----
     call t_startf('get_chunk_smry')
     call get_chunk_smry( 'TW_RELERR @'//name, &
-                         ncol, tw_rer(:ncol),state%lat(:ncol), state%lon(:ncol), chunk_smry(:), istat )
+                         ncol, tw_rer(:ncol),state%lat(:ncol), state%lon(:ncol), chunk_smry(:) )
     call t_stopf('get_chunk_smry')
 
     end if
