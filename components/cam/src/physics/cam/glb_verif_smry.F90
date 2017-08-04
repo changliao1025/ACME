@@ -118,13 +118,11 @@ module glb_verif_smry
                                                !     there is any value exceeding the corresponding threshold; 
                                                !     report on # of violations and the extreme values.
                                                !  1: like 0, but also report on the locations of extreme values.
-                                               !  2: like 1, but also provide summary even if the # of violations
-                                               !     is zero. This option is provided for debugging purposes, 
-                                               !     e.g., to get an idea of the typical magnitude of extremes,
-                                               !     and to avoid inconsistency between field names specified for
-                                               !     "add_smry_field" and "get_chunk_smry"
-                                               !  3: like 2, but let provide summary for every chunk. This is 
+                                               !  2: like 2, but provide summary for every chunk. This is 
                                                !     similar to the original implementation in QNEG3 and QNEG4. 
+
+  logical,public :: l_print_smry_for_all_fields = .false.   ! print summary regardless also when there are no
+                                                            ! values exceeding threshold.
                                 
   !-------------------------------------------------------------------
   ! The variable that contain a list of fields (on all processes)
@@ -456,7 +454,9 @@ contains
   
     ! Send message to log file
   
-    if ( (glb_verif_smry_level.ge.3) .and. (chunk_smry(ifld)%count.gt.0) ) then
+    if ( (glb_verif_smry_level.ge.2) .and. &
+         (chunk_smry(ifld)%count.gt.0 .or. l_print_smry_for_all_fields) ) then
+
        write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
@@ -566,7 +566,9 @@ contains
 
     ! Send message to log file
   
-    if ( (glb_verif_smry_level.ge.3) .and. (chunk_smry(ifld)%count.gt.0) ) then
+    if ( (glb_verif_smry_level.ge.2) .and. &
+         (chunk_smry(ifld)%count.gt.0 .or. l_print_smry_for_all_fields) ) then
+
        write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i10),(a,i4),(a,i2))') &
          'chunk_smry: ', &
          trim(chunk_smry(ifld)%field_name),'('//trim(chunk_smry(ifld)%field_unit)//')',': ', &
@@ -635,7 +637,9 @@ contains
 
     ! Send message to log file
   
-    if ( (glb_verif_smry_level.ge.3) .and. (domain_smry%count.gt.0) ) then
+    if ( (glb_verif_smry_level.ge.2) .and. &
+         (domain_smry%count.gt.0 .or. l_print_smry_for_all_fields) ) then
+
        write(iulog,'(2x,a,a40,a12,a2, i8,a,a7,e15.7, a,e15.7, a3,2(a,f7.2),(a,i4),(a,i10),(a,i4),(a,i2))') &
          'domain_smry: ', &
          trim(domain_smry%field_name),'('//trim(domain_smry%field_unit)//')',': ', &
@@ -658,7 +662,7 @@ contains
   !   then collect information from all MPI processes and get the global summary.
   !   This subroutine is meant to handle all fields on the summary list.
   !------------------------------------------------------------------------------------------
-  subroutine get_global_smry( chunk_smry_2d, domain_smry_1d, nstep, l_global_smry_verbose)
+  subroutine get_global_smry( chunk_smry_2d, domain_smry_1d, nstep)
 
 #ifdef SPMD
     use mpishorthand, only: mpir8, mpiint, mpicom
@@ -670,7 +674,6 @@ contains
     type(tp_stat_smry)  ::  chunk_smry_2d(:,:)  ! shape: (nchunk,nfld)
     type(tp_stat_smry)  :: domain_smry_1d(:)    ! shape: (nfld)
     integer,intent(in)  :: nstep                ! model time step
-    logical,intent(in)  :: l_global_smry_verbose  ! print out location of extreme values
 
     integer :: ii
 
@@ -821,7 +824,7 @@ contains
 
       ! Master proc prints out the global summary
 
-      if (masterproc .and. global_smry_1d(ii)%count.gt.0 ) then
+      if (masterproc .and. (global_smry_1d(ii)%count.gt.0 .or. l_print_smry_for_all_fields) ) then
 
         write(iulog,'(a19,i8, a40,a12, a10,e11.3,a2, i8, e13.3,i7)') &
                     'GLB_VERIF_SMRY:',nstep, &
@@ -836,7 +839,9 @@ contains
       ! Every proc compars its own extreme value with the global extreme.
       ! When equal, print location of extreme value to log file in verbose mode
 
-      if ( l_global_smry_verbose .and. global_smry_1d(ii)%count.gt.0 ) then
+      if ( (glb_verif_smry_level.ge.1) .and.    &! print location 
+           (global_smry_1d(ii)%count.gt.0 .or. l_print_smry_for_all_fields) ) then
+
       if ( global_smry_1d(ii)%extreme_val.eq.domain_smry_1d(ii)%extreme_val ) then
 
          write(iulog,'(a19,i8, a40,a12, a10,e11.3,a2, i8, e13.3,i7, 2f9.2,i5,i10,i5)') &
