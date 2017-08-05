@@ -382,7 +382,7 @@ contains
   !   subroutine deals with fields that have multiple vertical levels. 
   !---------------------------------------------------------------------------------------
   subroutine get_chunk_smry_m_lev_real( fldname, ncol, nlev, array_in, &
-                                      &  lat, lon, chunk_smry, ifld )
+                                      &  lat, lon, chunk_smry, ifld_out )
 
     character(len=*),  intent(in)    :: fldname
     integer,           intent(in)    :: ncol                 ! number of columns packed in array
@@ -391,10 +391,11 @@ contains
     real(r8),          intent(in)    :: lat(:)
     real(r8),          intent(in)    :: lon(:)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
-    integer, optional, intent(out)   :: ifld
+    integer, optional, intent(out)   :: ifld_out
 
     ! Local variables
 
+    integer  :: ifld
     real(r8) :: array(ncol,nlev)  ! equals array_in or abs(array_in) 
     integer  :: iflag(ncol,nlev) 
     integer  :: idx(2)
@@ -409,6 +410,8 @@ contains
     call t_startf('get_smry_field_idx')
     call get_smry_field_idx( fldname, ifld )
     call t_stopf('get_smry_field_idx')
+
+    if (present(ifld_out)) ifld_out = ifld
     if (ifld.eq.INT_UNDEF) return
 
     call t_startf('chunk_smry_flag_cnt_loc')
@@ -496,7 +499,7 @@ contains
   !   fluxes and vertical integrals). 
   !---------------------------------------------------------------------------------------
   subroutine get_chunk_smry_1_lev_real( fldname, ncol, array_in, &
-                                        lat, lon, chunk_smry, ifld )
+                                        lat, lon, chunk_smry, ifld_out )
 
     character(len=*),  intent(in)    :: fldname
     integer,           intent(in)    :: ncol           ! number of columns packed in array
@@ -504,10 +507,11 @@ contains
     real(r8),          intent(in)    :: lat(:)
     real(r8),          intent(in)    :: lon(:)
     type(tp_stat_smry),intent(inout) :: chunk_smry(:)
-    integer, optional, intent(out)   :: ifld
+    integer, optional, intent(out)   :: ifld_out
 
     ! Local variables
 
+    integer  :: ifld
     real(r8) :: array(ncol)    ! equals array_in or abs(array_in) 
     integer  :: iflag(ncol) 
     integer  :: idx(1)
@@ -522,6 +526,8 @@ contains
     call t_startf('get_smry_field_idx')
     call get_smry_field_idx( fldname, ifld )
     call t_stopf('get_smry_field_idx')
+
+    if (present(ifld_out)) ifld_out = ifld
     if (ifld.eq.INT_UNDEF) return
  
     call t_startf('chunk_smry_flag_cnt_loc')
