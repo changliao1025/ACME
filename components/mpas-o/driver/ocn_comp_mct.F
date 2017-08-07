@@ -890,6 +890,9 @@ contains
          ! write time stamp at every step
          call mpas_log_write('Doing timestep ' // trim(timeStamp))
 
+         ! pre-timestep analysis computation
+         call ocn_analysis_precompute(domain, ierr)
+
          ! Build forcing arrays.
          if (debugOn) call mpas_log_write('   Building forcing arrays')
          block_ptr => domain_ptr % blocklist

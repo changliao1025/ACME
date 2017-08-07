@@ -84,4 +84,5 @@ my @groups = qw(run_modes
                 am_transecttransport
                 am_eddyproductvariables
                 am_mocstreamfunction
+                am_conservationcheck
                 );
