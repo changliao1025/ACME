@@ -7,25 +7,29 @@ module glb_verif_smry
 ! mixing ratios, or energy conservation errors exceeding a certain threshold.
 !
 ! The basic idea is to build a list of fields for which such summaries will be provided 
-! during  model integration. For each field, first identify violations within each 
+! during  model integration.  A field is identified by its unique name that contains 
+! information about both the physical quantity and piece of code in which the values 
+! are monitored. 
+!
+! For each field, first identify violations within each 
 ! chunk of the physics grid; get a total count, and note down the extreme value and 
 ! its location (chunk/column index, lat, lon, and vertical level index if applicable).
 ! Then the total count and the extreme among all chunks on a single MPI process ("domain")
 ! are obtained. Lastly, the domain summaries are collected  by the master process to 
 ! provide a global summary.
 ! 
-! Each "field" on the list is identified by a field name and a procedure name
-! (see components of the derived type tp_stat_smry). For example, total energy error
-! from deep convection, total energy error from cloud microphysics, and negative 
-! cloud droplet mass concentration from deep convection would be considered 3 distinct
-! fields.
 !
 ! History:
 !
 ! First  version by Hui Wan (PNNL, 2017-05). 
 !  - MPI_gather was used for global communication.
-! Second version by Hui Wan (PNNL, 2017-07). 
+!
+! Second version by Hui Wan (PNNL, 2017-07/08), 
+! with inputs from Wuyin Lin (BNL)
 !  - Replace MPI_gather by MPI_allreduce;
+!  - Reduce computational cost related to string comparison;
+!  - Distinguish different verbose levels;
+!  - Add option to provide summary output infrequently.  
 !------------------------------------------------------------------------------------
 
   use shr_kind_mod,   only: r8=>SHR_KIND_R8
