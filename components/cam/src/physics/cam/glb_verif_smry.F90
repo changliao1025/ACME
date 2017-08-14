@@ -102,8 +102,8 @@ module glb_verif_smry
   !----------------
   ! Constants
 
-  integer, parameter :: INT_UNDEF = -999
-  real(r8),parameter :: FLT_UNDEF = -999._r8
+  integer, parameter :: INT_UNDEF = huge(0)
+  real(r8),parameter :: FLT_UNDEF = huge(0._r8)
 
   real(r8),parameter :: rad2deg = 180._r8/pi
 
