@@ -122,7 +122,7 @@ module glb_verif_smry
 
     ! extreme value and its location
 
-    real(r8) :: extreme_val
+    real(r8) :: extreme_val  = FLT_UNDEF
     real(r8) :: extreme_lat  = FLT_UNDEF/rad2deg
     real(r8) :: extreme_lon  = FLT_UNDEF/rad2deg
     integer  :: extreme_chnk = INT_UNDEF
