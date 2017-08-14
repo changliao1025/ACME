@@ -851,7 +851,7 @@ contains
                      trim(domain_smry_1d(ii)%field_name),                     &
                      trim(domain_smry_1d(ii)%field_unit) ,                     &
                      trim(cmpr_type_char), domain_smry_1d(ii)%threshold, ':', &
-                     global_smry_1d(ii)%count,               &! print GLOBAL count
+                     domain_smry_1d(ii)%count,               &
                      domain_smry_1d(ii)%extreme_val,         &
                      domain_smry_1d(ii)%fixer,               &
                      domain_smry_1d(ii)%extreme_lat*rad2deg, &
