@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 CIME_MODEL = "acme"
 DISTR_COMPONENTS = ['atm','lnd','rof','ice','ocn','cpl','wav'] #glc=esp=1
 RESOLUTION_DEFAULT = "ne30_g16"
-COMPSET_DEFAULT = "B1850C5"
-NTASKS_DEFAULT = "32,48,64"
+COMPSET_DEFAULT = "B1850"
+NTASKS_DEFAULT = "16,32,48"
 ROOTPE_DEFAULT = "0,0,0"
 CASENAME_PREFIX_DEFAULT = "lbt_timing_run_acme_"
 NTHRDS = 1
@@ -38,7 +38,7 @@ TIMER_LEVEL = 9
 
 # parameters for the linear solve
 PE_BLOCKSIZE = 8
-MAXCPU = 1024
+MAXCPU = 64
 
 ###############################################################################
 def parse_command_line(args, description):
@@ -74,6 +74,8 @@ To Be Finished Later
     parser.add_argument("--resolution",
                         help="Specify resolution", default=RESOLUTION_DEFAULT)
     parser.add_argument("--machine", help="machine name")
+    parser.add_argument("--submit_only", help="only submit batch jobs", 
+                        action="store_true")
     parser.add_argument("--postprocess_only", action="store_true")
     parser.add_argument("--force_purge", action="store_true")
     parser.add_argument("--casename_prefix", default=CASENAME_PREFIX_DEFAULT)
@@ -92,7 +94,7 @@ To Be Finished Later
     args.compiler = mach_obj.get_default_compiler() if args.compiler is None else compiler
 
     return (args.compiler, args.project, args.compset, args.resolution, args.machine, args.casename_prefix, args.ntasks_atm, args.ntasks_lnd, args.ntasks_rof,
-            args.ntasks_ice, args.ntasks_ocn, args.ntasks_cpl, args.ntasks_wav, args.postprocess_only, args.force_purge)
+            args.ntasks_ice, args.ntasks_ocn, args.ntasks_cpl, args.ntasks_wav, args.submit_only, args.postprocess_only, args.force_purge)
 
 def create_timing_runs(compiler, project, compset, resolution, machine_name,
                        casename_prefix,
@@ -286,8 +288,8 @@ def run_optimization(timing_runs):
     
     
 ###################################################################################
-def run_new(compiler, project, compset, resolution, machine_name, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,
-            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, postprocess_only, force_purge):
+def load_balance_tool(compiler, project, compset, resolution, machine_name, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,
+            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge):
 ###################################################################################
     mach = Machines(machine=machine_name)
     if project is None:
@@ -299,7 +301,8 @@ def run_new(compiler, project, compset, resolution, machine_name, casename_prefi
                                      machine_name, casename_prefix,
                                      ntasks_atm, ntasks_lnd, 
                                      ntasks_rof, ntasks_ice, ntasks_ocn, 
-                                     ntasks_cpl, ntasks_wav, postprocess_only)
+                                     ntasks_cpl, ntasks_wav, 
+                                     postprocess_only)
 
     
     if not postprocess_only:
@@ -319,10 +322,13 @@ def run_new(compiler, project, compset, resolution, machine_name, casename_prefi
     else:
         logger.info("Postprocessing only, not running anything")
 
-    for tr in timing_runs:
-        tr.postprocess()
+    if submit_only:
+        logger.info("Timing jobs submitted. After jobs completed, rerun with --preprocess_only option (and not --submit_only option) to optimize pe layout")
+    else:
+        for tr in timing_runs:
+            tr.postprocess()
 
-    run_optimization(timing_runs)
+        run_optimization(timing_runs)
     
 
     
@@ -332,11 +338,11 @@ def _main_func(description):
 ###############################################################################
 
     compiler, project, compset, resolution, mach, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,\
-            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, postprocess_only, force_purge\
+            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge\
             = parse_command_line(sys.argv, description)
 
-    sys.exit(run_new(compiler, project, compset, resolution, mach, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,\
-                     ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, postprocess_only, force_purge))
+    sys.exit(load_balance_tool(compiler, project, compset, resolution, mach, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,\
+                     ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge))
 
 ###############################################################################
 
