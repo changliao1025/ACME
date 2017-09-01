@@ -20,24 +20,26 @@ from CIME.case import Case
 import argparse, shutil, re, random, numpy, scipy, scipy.optimize
 
 logger = logging.getLogger(__name__)
-CIME_MODEL = "acme"
-DISTR_COMPONENTS = ['atm','lnd','rof','ice','ocn','cpl','wav'] #glc=esp=1
+
+# These values can be overridden on the command line
 RESOLUTION_DEFAULT = "ne30_g16"
 COMPSET_DEFAULT = "B1850"
-NTASKS_DEFAULT = "16,32,48"
+NTASKS_DEFAULT = "2,4,8"
 ROOTPE_DEFAULT = "0,0,0"
 CASENAME_PREFIX_DEFAULT = "lbt_timing_run_acme_"
-NTHRDS = 1
-STOP_OPTION = "ndays"
-STOP_N = 10
-NTotalTasks = 8
+NTHRDS_DEFAULT = "1"
+STOP_OPTION_DEFAULT = "ndays"
+STOP_N_DEFAULT = "10"
+
+# Other CIME variables that cannot be changed on command line
+DISTR_COMPONENTS = ['atm','lnd','rof','ice','ocn','cpl','wav']
 REST_OPTION = "never"
 DOUT_S = "FALSE"
 COMP_RUN_BARRIERS = "TRUE"
 TIMER_LEVEL = 9
 
 # parameters for the linear solve
-PE_BLOCKSIZE = 8
+PE_BLOCKSIZE = 2
 MAXCPU = 64
 
 ###############################################################################
@@ -56,10 +58,8 @@ The default value for ntasks_* is %s
 If a given component is not part of the compset then the tasks list is
 ignored for that component.
 
-To Be Finished Later
 
 """ % (NTASKS_DEFAULT)
-    os.environ['CIME_MODEL'] = CIME_MODEL
     parser = argparse.ArgumentParser(usage=help_str,
                                      description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -74,33 +74,35 @@ To Be Finished Later
     parser.add_argument("--resolution",
                         help="Specify resolution", default=RESOLUTION_DEFAULT)
     parser.add_argument("--machine", help="machine name")
+    parser.add_argument("--nthrds", default=NTHRDS_DEFAULT)
+    parser.add_argument("--stop_option", default=STOP_OPTION_DEFAULT)
+    parser.add_argument("--stop_n", default=STOP_N_DEFAULT)
     parser.add_argument("--submit_only", help="only submit batch jobs", 
                         action="store_true")
     parser.add_argument("--postprocess_only", action="store_true")
     parser.add_argument("--force_purge", action="store_true")
     parser.add_argument("--casename_prefix", default=CASENAME_PREFIX_DEFAULT)
-
+    parser.add_argument("--pe_output", help="write pe layout to file")
     for c in DISTR_COMPONENTS:
         parser.add_argument("--ntasks_%s" % c, help='comma-delimited input', default=NTASKS_DEFAULT)
-    #args = parser.parse_args(args[1:])
     args = CIME.utils.parse_args_and_handle_standard_logging_options(args, parser)
     for c in DISTR_COMPONENTS:
         k = 'ntasks_' + c
         attr = getattr(args, k)
         if attr is not None:
-            logger.info(k + '=' + str(attr))
             setattr(args, k,[int(n) for n in attr.split(',')])
     mach_obj = Machines(machine=args.machine)
     args.compiler = mach_obj.get_default_compiler() if args.compiler is None else compiler
 
     return (args.compiler, args.project, args.compset, args.resolution, args.machine, args.casename_prefix, args.ntasks_atm, args.ntasks_lnd, args.ntasks_rof,
-            args.ntasks_ice, args.ntasks_ocn, args.ntasks_cpl, args.ntasks_wav, args.submit_only, args.postprocess_only, args.force_purge)
+            args.ntasks_ice, args.ntasks_ocn, args.ntasks_cpl, args.ntasks_wav, args.submit_only, args.postprocess_only, args.force_purge, args.pe_output)
 
 def create_timing_runs(compiler, project, compset, resolution, machine_name,
                        casename_prefix,
                        ntasks_atm, ntasks_lnd, 
                        ntasks_rof, ntasks_ice, ntasks_ocn, 
-                       ntasks_cpl, ntasks_wav, postprocess_only):
+                       ntasks_cpl, ntasks_wav, postprocess_only,
+                       force_purge, pe_output):
     """
     timing runs are used to generate a model for time to run vs number of
     processors for a given component.
@@ -215,7 +217,7 @@ class TimingRun:
 
     def read_timing_file(self, filename):
         """
-        Read in timing files to get the costs (time) for each test
+        Read in timing files to get the costs (time/mday) for each test
         
         generates self.cost dictionary
         """
@@ -253,7 +255,7 @@ class TimingRun:
                 if component != "TOT":
                     self.cost[component] = float(m.groups()[1])
 
-def run_optimization(timing_runs):
+def solve(timing_runs, pefile=None):
     """
     Create model for cost vs ntasks for each component.
     Use these models in a linear optimization program to get optimal
@@ -262,16 +264,16 @@ def run_optimization(timing_runs):
     import optimize_model
     # Generate models for each component
     nruns = len(timing_runs)
-    models = []
+    models = {}
     for comp in ['ICE', 'LND', 'ATM', 'OCN']:
-        models.append(optimize_model.ModelData(comp,
+        models[comp] = optimize_model.ModelData(comp,
                                         [timing_runs[i].ntasks[comp] for i in range(0, nruns)],
-                                        [timing_runs[i].cost[comp] for i in range(0, nruns)]))
+                                                [timing_runs[i].cost[comp] for i in range(0, nruns)], PE_BLOCKSIZE)
 
-    # Use atm-lnd-ocn-ice linear programp
-    opt = optimize_model.AtmLndOcnIce(models, maxnodes=MAXCPU, 
-                                      peblocksize=PE_BLOCKSIZE)
-    opt.write_timings(fd=None, logger=logger)
+    # Use atm-lnd-ocn-ice linear program
+    opt = optimize_model.IceLndAtmOcn(models, maxnodes=MAXCPU)
+
+    opt.write_timings(fd=None)
     #opt.graph_timings()
 
     logger.info("Solving Mixed Integer Linear Program using PuLP interface to GLPK")
@@ -284,12 +286,15 @@ def run_optimization(timing_runs):
         else:
             logger.info("%s = %f" % (k,solution[k]))
 
-    #opt.write_verbose_output()
+    opt.write_verbose_output(fd=None)
+    if pefile:
+        opt.write_pe_file(pefile)
+    
     
     
 ###################################################################################
 def load_balance_tool(compiler, project, compset, resolution, machine_name, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,
-            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge):
+                      ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge, pe_output):
 ###################################################################################
     mach = Machines(machine=machine_name)
     if project is None:
@@ -302,7 +307,7 @@ def load_balance_tool(compiler, project, compset, resolution, machine_name, case
                                      ntasks_atm, ntasks_lnd, 
                                      ntasks_rof, ntasks_ice, ntasks_ocn, 
                                      ntasks_cpl, ntasks_wav, 
-                                     postprocess_only)
+                                     postprocess_only, force_purge, pe_output)
 
     
     if not postprocess_only:
@@ -328,7 +333,7 @@ def load_balance_tool(compiler, project, compset, resolution, machine_name, case
         for tr in timing_runs:
             tr.postprocess()
 
-        run_optimization(timing_runs)
+        solve(timing_runs, pe_output)
     
 
     
@@ -338,11 +343,10 @@ def _main_func(description):
 ###############################################################################
 
     compiler, project, compset, resolution, mach, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,\
-            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge\
-            = parse_command_line(sys.argv, description)
+            ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge, pe_output  = parse_command_line(sys.argv, description)
 
-    sys.exit(load_balance_tool(compiler, project, compset, resolution, mach, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,\
-                     ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge))
+    sys.exit(load_balance_tool(compiler, project, compset, resolution, mach, casename_prefix, ntasks_atm, ntasks_lnd, ntasks_rof,
+                               ntasks_ice, ntasks_ocn, ntasks_cpl, ntasks_wav, submit_only, postprocess_only, force_purge, pe_output))
 
 ###############################################################################
 
