@@ -17,57 +17,56 @@ from pulp import *
 
 logger = logging.getLogger(__name__)
 COMPONENTS = ['ATM', 'OCN', 'LND', 'ICE', 'GLC', 'ROF', 'CPL', 'WAV', 'EPS']
+_oldmodel_dict = {
+    "layout" : "IceLndAtmOcn",
+    "description" : "Example model solve from dictionary",
+    "maxtasks" : 1024,
+    "ATM" : {
+        "ntasks" : [32,64,128,256,512], 
+        "nthrds" : [1,1,1,1,1],
+        "blocksize" : 8,
+        "cost" : [427.471, 223.332, 119.580, 66.182, 37.769]
+    },        
+    "OCN" : {
+        "ntasks" : [32,64,128,256,512],
+        "nthrds" : [1,1,1,1,1],
+        "blocksize" : 8,
+        "cost" : [ 15.745, 7.782, 4.383, 3.181, 2.651]
+    },
+    "LND" : {
+        "ntasks" : [32,64,128,256,512],
+        "nthrds" : [1,1,1,1,1],
+        "blocksize" : 8,
+        "cost" : [  4.356, 2.191, 1.191, 0.705, 0.560]
+    },
+    "ICE" : {
+        "ntasks" : [32,64,160,320,640],
+        "nthrds" : [1,1,1,1,1],
+        "blocksize" : 8,
+        "cost" : [8.018, 4.921, 2.368, 1.557, 1.429]
+    }
+}
 
 ###############################################################################
 def parse_command_line(args, description):
 ###############################################################################
     help_str = """
 Run mixed inter linear optimization on set of timing data. Input should be in json format. Items are:
-MILPMODEL -- name of model used to optimize. The only model available at this 
+milpmodel -- name of model used to optimize. The only model available at this 
              time is IceLndAtmOcn. Default IceLndAtmOcn
-DESCRIPTION -- text describing this data. Optional
-MAXTASKS -- maximum number of tasks to assign. Required.
+description -- text describing this data. Optional
+maxtasks -- maximum number of tasks to assign. Required.
 
 for each component (ATM, OCN, etc.)
-    NTASKS -- list of number of tasks for a component in each run. Required
-    COST -- ordered list of time cost for a component in each run. Required
-    TASKBLOCKSIZE -- number of tasks that must be assigned to model in a block.
+    ntasks -- list of number of tasks for a component in each run. Required
+    cost -- ordered list of time cost for a component in each run. Required
+    blocksize -- number of tasks that must be assigned to model in a block.
                      Default 1   
-    NTHRDS -- list of threads used by this component for each run. 
+    nthrds -- list of threads used by this component for each run. 
               Not implemented
 
-Example (in oldmodel.json):
-{
-  "MILPMODEL" : "AtmLndOcnIce",
-  "DESCRIPTION" : "Example model solve"
-  "MAXTASKS" : 1024,
-  "ATM" : {
-    "NTASKS" : [32,64,128,256,512], 
-    "NTHRDS" : [1,1,1,1,1],
-    "TASKBLOCKSIZE" : 8,
-    "COST" : [427.471, 223.332, 119.580, 66.182, 37.769]
-  },        
-  "OCN" : {
-      "NTASKS" : [32,64,128,256,512],
-      "NTHRDS" : [1,1,1,1,1],
-      "TASKBLOCKSIZE" : 8,
-      "COST" : [ 15.745, 7.782, 4.383, 3.181, 2.651]
-  },
-  "LND" : {
-      "NTASKS" : [32,64,128,256,512],
-      "NTHRDS" : [1,1,1,1,1],
-      "TASKBLOCKSIZE" : 8,
-      "COST" : [  4.356, 2.191, 1.191, 0.705, 0.560]
-  },
-  "ICE" : {
-      "NTASKS" : [32,64,160,320,640],
-      "NTHRDS" : [1,1,1,1,1],
-      "TASKBLOCKSIZE" : 8,
-      "COST" : [8.018, 4.921, 2.368, 1.557, 1.429]
-  }
-}
-
-""" 
+    Example (in oldmodel.json): %s
+""" % _oldmodel_dict
     parser = argparse.ArgumentParser(usage=help_str,
                                      description=description,
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -84,48 +83,30 @@ Example (in oldmodel.json):
 def run_optimization(inputfile, graph_costs, pefilename):
     description = None
     maxtasks = None
-    comp_models = {}
-    with open(inputfile, "r") as jsonfile:
-        try:
-            data = json.load(jsonfile)
-        except ValueError, e:
-            logger.critical("Unable to parse json file %s" % inputfile)
+    if inputfile == "test_dictionary":
+        data = _oldmodel_dict
+    else:
+        with open(inputfile, "r") as jsonfile:
+            try:
+                data = json.load(jsonfile)
+            except ValueError, e:
+                logger.critical("Unable to parse json file %s" % inputfile)
             
-        if data.has_key('DESCRIPTION'):
-            description = data['DESCRIPTION']
+    opt = optimize_model.solver_factory(data)
 
-        if data.has_key('MAXTASKS'):
-            maxtasks = data['MAXTASKS']
-        else:
-            logger.critical("MAXTASKS not found in json file %s" % inputfile)
-            
-        lpmodel = data['LPMODEL']
-        for c in COMPONENTS:
-            blocksize = 1
-            if data.has_key('TASKBLOCKSIZE'):
-                blocksize = data['TASKBLOCKSIZE']
-            if data.has_key(c):
-                d = data[c]
-                comp_models[c] = optimize_model.ModelData(c, 
-                                                          d['NTASKS'], 
-                                                          d['COST'], 
-                                                          blocksize)
+    if graph_costs:
+        opt.graph_costs()
 
-        opt = optimize_model.IceLndAtmOcn(comp_models, maxtasks)
-        if graph_costs:
-            opt.graph_costs()
+    opt.write_timings()
 
-        opt.write_timings()
+    result = opt.optimize()
+    solution = opt.get_solution()
 
-        result = opt.optimize()
-        solution = opt.get_solution()
+    for k in sorted(solution.keys()):
+        sys.stdout.write("%10s = %f\n" % (k, solution[k]))
 
-        opt.write_verbose_output()
-        for k in sorted(solution.keys()):
-            sys.stdout.write("%10s = %f\n" % (k, solution[k]))
-    
-        if pefilename:
-            opt.write_pe_file(pefilename)
+    if pefilename:
+        opt.write_pe_file(pefilename)
 
 
 
