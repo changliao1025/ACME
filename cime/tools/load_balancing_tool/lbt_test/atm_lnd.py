@@ -51,19 +51,19 @@ class AtmLnd(optimize_model.OptimizeModel):
         self.constraints.append([X['Tatm'] + X['Trof'] + X['Tcpl'] - X['TotalTime'] <= 0, "Tatm + Trof + Tcpl - TotalTime <= 0"])
         self.constraints.append([X['Tlnd'] + X['Tice'] + X['Tocn'] - X['TotalTime'] <= 0, "Tlnd + Tice + Tocn - TotalTime <= 0"])
 
-        self.constraints.append([X['Natm'] - X['N1'] <= 0,
+        self.constraints.append([X['Natm'] - X['N1'] == 0,
                             "Natm - N1 <= 0"])
-        self.constraints.append([X['Nrof'] - X['N1'] <= 0,
+        self.constraints.append([X['Nrof'] - X['N1'] == 0,
                             "Nrof - N1 <= 0"])
-        self.constraints.append([X['Ncpl'] - X['N1'] <= 0,
+        self.constraints.append([X['Ncpl'] - X['N1'] == 0,
                             "Ncpl - N1 <= 0"])
 
-        self.constraints.append([X['Nlnd'] + X['N1'] <= self.maxtasks,
-                                 "Xlnd + XN1 <= MAXN"])
-        self.constraints.append([X['Nice'] + X['N1'] <= self.maxtasks,
-                                 "Xice + XN1 <= MAXN"])
-        self.constraints.append([X['Nocn'] + X['N1'] <= self.maxtasks,
-                                 "Xocn + XN1 <= MAXN"])
+        self.constraints.append([X['Nlnd'] + X['N1'] == self.maxtasks,
+                                 "Nlnd + N1 <= MAXN"])
+        self.constraints.append([X['Nice'] + X['N1'] == self.maxtasks,
+                                 "Nice + N1 <= MAXN"])
+        self.constraints.append([X['Nocn'] + X['N1'] == self.maxtasks,
+                                 "Nocn + N1 <= MAXN"])
 
         self.constraints.append([self.atm.blocksize * X['NBatm'] - X['Natm'] == 0,
                             "Natm = %d * NBatm" % self.atm.blocksize])

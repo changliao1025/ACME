@@ -5,7 +5,7 @@ try:
 except ImportError, e:
     sys.stderr.write("pulp library not installed or located. "
                      "Try pip install [--user] pulp\n")
-    sys.exit(1)
+    raise(e)
 
 
 logger = logging.getLogger(__name__)
@@ -17,17 +17,17 @@ def solver_factory(data):
     if data.has_key('description'):
         description = data['description']
 
-    if data.has_key('maxtasks'):
-        maxtasks = data['maxtasks']
+    if data.has_key('totaltasks'):
+        maxtasks = data['totaltasks']
     else:
-        logger.critical("ERROR: maxtasks not found in data")
-        raise KeyError("maxtasks not found in data")
+        logger.critical("ERROR:totaltasks not found in data")
+        raise KeyError("totaltasks not found in data")
 
     layout = data['layout']
     if layout in globals():
         solverclass = globals()[layout]
     else:
-        sp = layout.rsplit('.')
+        sp = layout.rsplit('.',1)
         if len(sp) > 1:
             try:
                 layout_module = importlib.import_module(sp[0])
@@ -108,14 +108,16 @@ class OptimizeModel(object):
             # add in data for maxtasks if not available
             # assume same scaling factor as previous interval
             if m.ntasks[-1] < self.maxtasks:
-                if len(m.ntasks) > 1:
+                if m.cost[-2] <= 0.0:
+                    factor = 1.0
+                elif len(m.ntasks) > 1:
                     factor = (1.0 - m.cost[-1]/m.cost[-2]) / \
                              (1.0 - 1. * m.ntasks[-2] / m.ntasks[-1])
                 else:
                     # not much information to go on ...
                     factor = 1.0
                 m.cost.append(m.cost[-1] * (1.0 - factor + 
-                                    1. * m.ntasks[-1] / self.maxtasks))
+                                    factor * m.ntasks[-1] / self.maxtasks))
                 m.ntasks.append(self.maxtasks)
                 m.extrapolated.append(True)
 
@@ -133,12 +135,18 @@ class OptimizeModel(object):
             tk = 'T' + k.lower() # cost(time) key
             nk = 'N' + k.lower() # nprocs key
             for i in range(0, len(m.cost) - 1):
-                slope = (m.cost[i+1] - m.cost[i]) / (m.ntasks[i+1] - m.ntasks[i])
+                slope = (m.cost[i+1] - m.cost[i]) / (1. * m.ntasks[i+1] - m.ntasks[i])
                 self.constraints.append([self.X[tk] - slope * self.X[nk] >= \
-                                         m.cost[i] - slope * m.ntasks[i+1],
+                                         m.cost[i] - slope * m.ntasks[i],
                                          "T%s - %f*N%s >= %f" % \
                                          (k.lower(), slope, k.lower(), 
-                                          m.cost[i] - slope * m.ntasks[i+1])])
+                                          m.cost[i] - slope * m.ntasks[i])])
+                if slope > 0:
+                    logger.warning("WARNING: Nonconvex cost function for model %s. Please")
+                    logger.warning("Review costs to ensure data is correct (--graph_models or --print_models)")
+                    break
+                if slope == 0:
+                    break
         
         self.status = pulp.constants.LpStatusNotSolved
         
@@ -157,7 +165,7 @@ class OptimizeModel(object):
             if r not in self.models:
                 logger.critical("Data for component %s not available" % r)
 
-    def write_timings(self, fd=sys.stdout):
+    def write_timings(self, fd=sys.stdout, level=logging.DEBUG):
         """
         Print out the data used for the ntasks/cost models.
         Can be used to check that the data provided to the
@@ -168,7 +176,7 @@ class OptimizeModel(object):
             message = "***%s***" % k
             if fd is not None:
                 fd.write("\n" + message + "\n")
-            logger.debug(message)
+            logger.log(level, message)
 
             for i in range(len(m.cost)):
                 extra = ""
@@ -178,7 +186,7 @@ class OptimizeModel(object):
                            (m.ntasks[i], m.cost[i], extra)
                 if fd is not None:
                     fd.write(message + "\n")
-                logger.debug(message)
+                logger.log(level, message)
 
     def graph_costs(self):
         """
@@ -321,11 +329,6 @@ class IceLndAtmOcn(OptimizeModel):
       . Assuming perfect scalability for ntasks < tasks[0]
       . Assuming same scalability factor for ntasks > ntasks[last] as for
                               last two data points
-
-    Solves mixed integer linear program using pulp interface to glpk
-    Therefore assumes both pulp and glpk installed
-    pulp: https://github.com/coin-or/pulp
-    glpk: https://www.gnu.org/software/glpk/
     """
     def get_required_components(self):
         return ['LND', 'ICE', 'ATM', 'OCN']
@@ -391,7 +394,7 @@ class IceLndAtmOcn(OptimizeModel):
         for c, s in self.constraints:
             self.prob += c, s
 
-        # Write the program to file and solve (using glpk)
+        # Write the program to file and solve (using coin-cbc)
         self.prob.writeLP("IceLndAtmOcn_model.lp")
         self.prob.solve()
         self.status = self.prob.status

@@ -18,7 +18,7 @@ steps:
 2. load_balancing_solve.py
    Using the data provided in the previous program, solve a mixed integer 
    linear program to optimize the model throughput. Requires installation
-   of GLPK and PuLP
+   of PuLP and uses the COIN-CBC solver.
 
 Also in this documentation is
 
@@ -33,9 +33,7 @@ For the impatient
 *****************
 
 set PYTHONPATH to include 
-    $CIME_DIR/scripts:$CIME_DIR/tools/load_balancing_tool/code
-set PATH to include
-    $CIME_DIR/tools/load_balancing_tool/code
+    $CIME_DIR/scripts:$CIME_DIR/tools/load_balancing_tool
 
 create PE XML <PESFILE> file to describe the PE layouts for the timing runs
 
@@ -51,7 +49,7 @@ $ load_balancing_solve.py --total_tasks <N> --blocksize 8
 ******************************************************************
 
 Simulations can be run on a given system by executing the load_balancing_tool.py
-script, located in cime/tools/load_balancing_tool/code/load_balancing_tool_submit.py. This creates output that can be
+script, located in cime/tools/load_balancing_tool/load_balancing_tool_submit.py. This creates output that can be
 
 As with the create_newcase and create_test scripts, these command line options
 are used to tailor the simulations for a given model. These values will be 
@@ -254,14 +252,15 @@ follows from the layout:
             all T vars >=0
 	    all N,NB vars integer
 
-This MILP is solved using the PuLP python interface to the GLPK solver
+This MILP is solved using the PuLP python interface to the COIN-CBC solver
 https://pythonhosted.org/PuLP/
-https://www.gnu.org/software/glpk/
+https://www.coin-or.org/Cbc/
+
 
 ************************************
 4. Extending the Load Balancing Tool
 ************************************
-The file $CIME_DIR/tools/load_balancing_tool/code/optimize_model.py
+The file $CIME_DIR/tools/load_balancing_tool/optimize_model.py
 contains a base class OptimizeModel as well as an implementation class
 IceLndAtmOcn. Any layout solver will look similar to IceLndAtmOcn 
 except for the components involved and the layout-specific constraints.

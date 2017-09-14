@@ -204,17 +204,17 @@ def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
     
 
     # Read in list of pes from given file
-
     if not os.access(pesfile, os.R_OK):
         logger.critical('ERROR: File %s not found' % pesfile)
-        raise SystemExit()
+        raise SystemExit(1)
     logger.info('Reading XML file %s. Searching for pesize entries:' % pesfile)
     try:
         pesobj = CIME.XML.pes.Pes(pesfile)
+        logger.info(str(pesobj))
     except ParseError, e:
         logger.critical('ERROR: File %s not parseable' % pesfile)
-        raise SystemExit()
-        
+        raise SystemExit(1)
+    
     pesize_list = []
     for node in pesobj.get_nodes('pes'):
         pesize = node.get('pesize')
@@ -227,7 +227,7 @@ def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
     
     if len(pesize_list) == 0:
         logger.critical('ERROR: No grid entries found in pes file %s' % pesfile)
-        raise SystemExit()
+        raise SystemExit(1)
     
     # Submit job for each entry in pesfile
     script_dir = CIME.utils.get_scripts_root()
@@ -265,11 +265,11 @@ def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
                         _set_xml_val(split[0], split[1], casedir)
                     else:
                         logger.debug('ignoring line in %s: %s' % 
-                                     extra_options_file, line)
+                                     (extra_options_file, line))
                 extras.close()
             except IOError, e:
                 logger.critical("ERROR: Could not read file %s" % extra_options_file)
-                raise SystemExit
+                raise SystemExit(1)
                 
         # There should be a better way to do this
         pes_ntasks, pes_nthrds, pes_rootpe, other = \
@@ -300,7 +300,6 @@ def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-
     compset, res, pesfile, compiler, project, machine, extra_options_file, casename_prefix, force_purge = parse_command_line(sys.argv, description)
 
     sys.exit(load_balancing_submit(compset, res, pesfile,
