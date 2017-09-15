@@ -31,10 +31,12 @@ except ImportError, e:
 
 
 from CIME.utils import run_cmd_no_fail, run_cmd
+from CIME.XML.machines import Machines
 from CIME.XML import pes
 import unittest, json, tempfile, sys, re, copy
 
 SCRIPT_DIR  = CIME.utils.get_scripts_root()
+MACHINE = Machines()
 CODE_DIR = os.path.join(SCRIPT_DIR, "..", "tools", "load_balancing_tool")
 TEST_DIR = os.path.join(SCRIPT_DIR, "..", "tools", "load_balancing_tool",
                         "lbt_test")
@@ -214,10 +216,13 @@ class LoadBalanceTests(unittest.TestCase):
             tfile.flush()
             xfile.write(X_OPTIONS)
             xfile.flush()
-            sys.stdout.write("\nIf on batch system, the test may need to be ")
-            sys.stdout.write("rerun after small test jobs have completed.\n")
-            sys.stdout.write("If not on batch system, please remove directories\n%s/test_lbt_* and rerun\n" % SCRIPT_DIR)
             cmd = "./load_balancing_submit.py --pesfile %s --res ne30_g16 --compset X --casename_prefix test_lbt_  --extra_options_file %s" % (tfile.name, xfile.name)
+            if MACHINE.has_batch_system():
+                sys.stdout.write("Jobs will be submitted to queue. Rerun "
+                                 "load_balancing_test.py after jobs have "
+                                 "finished.")
+            else:
+                cmd += " --force_purge"
             output = run_cmd_no_fail(cmd, from_dir=CODE_DIR)
             self.assertTrue(output.find("Timing jobs submitted") >= 0,
                             "Expected 'Timing jobs submitted' in output")

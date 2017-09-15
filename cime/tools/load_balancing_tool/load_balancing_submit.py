@@ -4,6 +4,10 @@ Script to submit a series of ACME runs to get data for
 time vs nprocessors model. This data will be used to generate
 a processor layout that achieves high efficiency
 """
+from xml.etree.ElementTree import ParseError
+import argparse
+import shutil
+
 try:
     from Tools.standard_script_setup import *
 except ImportError, e:
@@ -13,9 +17,6 @@ except ImportError, e:
 
 from CIME.utils import run_cmd_no_fail
 from CIME.XML import pes
-from xml.etree.ElementTree import ParseError
-
-import argparse, shutil
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +177,8 @@ example_pes.xml:
     parser.add_argument('--project', help='Specify project id')
     parser.add_argument('--machine', help='machine name')
 
-    parser.add_argument('--extra_options_file', help='file listing options to be run using xmlchange')
+    parser.add_argument('--extra_options_file',
+                        help='file listing options to be run using xmlchange')
     parser.add_argument('--casename_prefix', default=DEFAULT_CASENAME_PREFIX,
                         help='casename prefix to use for all timing runs')
     parser.add_argument('--force_purge', action='store_true')
@@ -188,70 +190,80 @@ example_pes.xml:
             args.casename_prefix, args.force_purge)
 
 def _set_xml_val(option, value, casedir):
+    """
+    Call xmlchange from command line to set option=value
+    """
     cmd = './xmlchange %s=%s' % (option, value)
     logger.info(cmd)
     return run_cmd_no_fail(cmd, from_dir=casedir)
 
 ################################################################################
 def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
-                        extra_options_file, casename_prefix, force_purge):
+                          extra_options_file, casename_prefix, force_purge):
 ################################################################################
     create_newcase_flags = ' --compset %s --res %s --handle-preexisting-dirs r ' % (compset, res)
     if machine is not None:
         create_newcase_flags += ' --machine ' + machine
     if project is not None:
         create_newcase_flags += ' --project ' + project
-    
+    if compiler is not None:
+        create_newcase_flags += ' --compiler ' + compiler
 
     # Read in list of pes from given file
     if not os.access(pesfile, os.R_OK):
-        logger.critical('ERROR: File %s not found' % pesfile)
+        logger.critical('ERROR: File %s not found', pesfile)
         raise SystemExit(1)
-    logger.info('Reading XML file %s. Searching for pesize entries:' % pesfile)
+    logger.info('Reading XML file %s. Searching for pesize entries:', pesfile)
     try:
         pesobj = CIME.XML.pes.Pes(pesfile)
         logger.info(str(pesobj))
-    except ParseError, e:
-        logger.critical('ERROR: File %s not parseable' % pesfile)
+    except ParseError:
+        logger.critical('ERROR: File %s not parseable', pesfile)
         raise SystemExit(1)
-    
+
     pesize_list = []
     for node in pesobj.get_nodes('pes'):
         pesize = node.get('pesize')
         if not pesize:
-            logger.critical('No pesize for pes node in file %s' % pesfile)
+            logger.critical('No pesize for pes node in file %s', pesfile)
         if pesize in pesize_list:
-            logger.critical('pesize %s duplicated in file %s' % pesfile)
+            logger.critical('pesize %s duplicated in file %s', pesize, pesfile)
         logger.info('  ' + pesize)
         pesize_list.append(pesize)
-    
-    if len(pesize_list) == 0:
-        logger.critical('ERROR: No grid entries found in pes file %s' % pesfile)
+
+    if not pesize_list:
+        logger.critical('ERROR: No grid entries found in pes file %s', pesfile)
         raise SystemExit(1)
-    
+
     # Submit job for each entry in pesfile
     script_dir = CIME.utils.get_scripts_root()
     for pesize in pesize_list:
         casename = casename_prefix + pesize
         casedir = os.path.join(script_dir, casename)
-        logger.info('Case %s...' % casename)
+        logger.info('Case %s...', casename)
         if os.path.exists(casedir):
             if force_purge:
-                logger.info('Removing directory %s' % casedir)
+                logger.info('Removing directory %s', casedir)
                 shutil.rmtree(casedir)
             elif os.path.exists(os.path.join(casedir, 'timing')):
-                logger.info('Skipping timing run for %s, because case directory already exists.\n   To force rerun of all tests, use --force_purge option.\n   To force rerun of this test only, remove directory \n      %s' %  (casename, casedir))
+                logger.info('Skipping timing run for %s, because case '
+                            'already exists.\n   To force rerun of all tests, '
+                            'use --force_purge option.\n   To force rerun of '
+                            'this test only, remove directory \n      %s',
+                            casename, casedir)
                 continue
             else:
-                logger.critical("ERROR: directory %s exists,\n  but no timing information available. Either run with --force_purge\n  (will remove all timing runs) or remove this directory and try again" % casedir)
+                logger.critical("ERROR: directory %s exists,\n  but no timing "
+                                "information available. Either run with "
+                                "--force_purge\n  (remove all timing runs) or "
+                                "remove this directory and try again", casedir)
                 sys.exit(1)
-                
 
         cmd = '%s/create_newcase --case %s --output-root %s ' % \
               (script_dir, casename, casedir)
         cmd += create_newcase_flags
         logger.info(cmd)
-        output = run_cmd_no_fail(cmd, from_dir=script_dir)
+        run_cmd_no_fail(cmd, from_dir=script_dir)
         for var in CIME_DEFAULTS:
             _set_xml_val(var, CIME_DEFAULTS[var], casedir)
 
@@ -261,19 +273,21 @@ def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
                 for line in extras.readlines():
                     split = line.split('=')
                     if len(split) == 2:
-                        logger.info('setting %s=%s' % (split[0], split[1]))
+                        logger.info('setting %s=%s', split[0], split[1])
                         _set_xml_val(split[0], split[1], casedir)
                     else:
-                        logger.debug('ignoring line in %s: %s' % 
-                                     (extra_options_file, line))
+                        logger.debug('ignoring line in %s: %s',
+                                     extra_options_file, line)
                 extras.close()
             except IOError, e:
-                logger.critical("ERROR: Could not read file %s" % extra_options_file)
+                logger.critical("ERROR: Could not read file %s",
+                                extra_options_file)
                 raise SystemExit(1)
-                
+
         # There should be a better way to do this
-        pes_ntasks, pes_nthrds, pes_rootpe, other = \
+        pes_ntasks, pes_nthrds, pes_rootpe, ignore = \
             pesobj.find_pes_layout('any', 'any', 'any', pesize_opts=pesize)
+
         for key in pes_ntasks:
             _set_xml_val(key, pes_ntasks[key], casedir)
         for key in pes_nthrds:
@@ -283,20 +297,20 @@ def load_balancing_submit(compset, res, pesfile, compiler, project, machine,
 
         cmd = './case.setup'
         logger.info(cmd)
-        output = run_cmd_no_fail(cmd, from_dir=casedir)
+        run_cmd_no_fail(cmd, from_dir=casedir)
 
         cmd = './case.build'
         logger.info(cmd)
-        output = run_cmd_no_fail(cmd, from_dir=casedir)
+        run_cmd_no_fail(cmd, from_dir=casedir)
 
         cmd = './case.submit'
         logger.info(cmd)
-        output = run_cmd_no_fail(cmd, from_dir=casedir)
-        
-    logger.info('Timing jobs submitted. After jobs completed, run to optimize pe layout:\n  load_balancing_solve --casename_prefix %s' % (casename_prefix))
+        run_cmd_no_fail(cmd, from_dir=casedir)
 
-    
-    
+    logger.info('Timing jobs submitted. After jobs completed, run to optimize '
+                'pe layout:\n  load_balancing_solve --casename_prefix %s',
+                (casename_prefix))
+
 ###############################################################################
 def _main_func(description):
 ###############################################################################
@@ -311,4 +325,3 @@ def _main_func(description):
 
 if __name__ == '__main__':
     _main_func(__doc__)
-    
