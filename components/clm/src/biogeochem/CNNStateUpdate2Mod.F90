@@ -14,7 +14,7 @@ module CNNStateUpdate2Mod
   use CNNitrogenFLuxType  , only : nitrogenflux_type
   use VegetationType           , only : veg_pp
   use pftvarcon           , only : npcropmin
-  !! bgc interface & pflotran:
+  ! bgc interface & pflotran:
   use clm_varctl          , only : use_pflotran, pf_cmode
   !
   implicit none
@@ -80,22 +80,6 @@ contains
             end do
          end do
 
-      elseif (is_active_betr_bgc) then
-
-         do j = 1, nlevdecomp
-            do fc = 1,num_soilc
-               c = filter_soilc(fc)
-               
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_met_lit) = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_met_lit) + nf%gap_mortality_n_to_litr_met_n_col(c,j) * dt
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_cel_lit) = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_cel_lit) + nf%gap_mortality_n_to_litr_cel_n_col(c,j) * dt
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_lig_lit) = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_lig_lit) + nf%gap_mortality_n_to_litr_lig_n_col(c,j) * dt
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_cwd)     = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_cwd)     + nf%gap_mortality_n_to_cwdn_col(c,j)       * dt
-            end do
-         end do         
      endif
 
       ! patch -level nitrogen fluxes from gap-phase mortality
@@ -186,21 +170,6 @@ contains
             end do
          end do
 
-      elseif (is_active_betr_bgc) then
-
-         do j = 1,nlevdecomp
-            do fc = 1,num_soilc
-               c = filter_soilc(fc)
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_met_lit) = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_met_lit) + nf%harvest_n_to_litr_met_n_col(c,j) * dt
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_cel_lit) = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_cel_lit) + nf%harvest_n_to_litr_cel_n_col(c,j) * dt
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_lig_lit) = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_lig_lit) + nf%harvest_n_to_litr_lig_n_col(c,j) * dt
-               nf%bgc_npool_ext_inputs_vr_col(c,j,i_cwd)     = &
-                    nf%bgc_npool_ext_inputs_vr_col(c,j,i_cwd)     + nf%harvest_n_to_cwdn_col(c,j)       * dt
-            end do
-         end do         
       endif
 
       ! patch-level nitrogen fluxes from harvest mortality

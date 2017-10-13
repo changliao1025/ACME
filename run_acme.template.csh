@@ -59,7 +59,6 @@ set restart_units    = $stop_units
 set restart_num      = $stop_num
 set num_resubmits    = 0
 set do_short_term_archiving      = false
-set do_long_term_archiving       = false
 
 ### SIMULATION OPTIONS
 set atm_output_freq              = -24
@@ -171,7 +170,6 @@ set cpl_hist_num   = 1
 #    continue the simulation.  num_resubmits is the number of times to submit after initial completion.
 #    After the first submission, the CONTINUE_RUN flage in env_run.xml will be changed to TRUE.
 #do_short_term_archiving: If TRUE, then move simulation output to the archive directory in your scratch directory.
-#do_long_term_archiving : If TRUE, then move simulation output from the short_term_archive to the local mass storage system.
 
 ### SIMULATION OPTIONS (10)
 
@@ -210,7 +208,7 @@ set cpl_hist_num   = 1
 #===========================================
 # VERSION OF THIS SCRIPT
 #===========================================
-set script_ver = 3.0.12
+set script_ver = 3.0.15
 
 #===========================================
 # DEFINE ALIASES
@@ -267,6 +265,8 @@ endif
 # BASIC ERROR CHECKING
 #===========================================
 
+set seconds_after_warning = 10
+
 if ( `lowercase $old_executable` == true ) then
   if ( $seconds_before_delete_source_dir >= 0 ) then
     acme_newline
@@ -297,26 +297,28 @@ if ( `lowercase $case_run_dir` == default && $seconds_before_delete_run_dir >= 0
   exit 15
 endif
 
-if ( $num_resubmits >= 1 && ( $stop_units != $restart_units || $stop_num != $restart_num ) ) then
-  acme_print 'WARNING: It makes no sense to have chained submissions unless the run is producing appropriate restarts!'
-  acme_print '         The run length and restarts do not match exactly. '
-  acme_print '         It is hard to check definitively, so stopping just in case.'
-  acme_print '         If the settings are OK then deactivate this test.'
-  acme_print '         $stop_units     = '$stop_units
-  acme_print '         $stop_num       = '$stop_num
-  acme_print '         $restart_units  = '$restart_units
-  acme_print '         $restart_num    = '$restart_num
-  acme_print '         $num_resubmits  = '$num_resubmits
-  exit 16
-endif
-
 if ( `lowercase $debug_queue` == true && ( $num_resubmits >= 1 || `lowercase $do_short_term_archiving` == true ) ) then
   acme_print 'ERROR: Supercomputer centers generally do not allow job chaining in debug queues'
   acme_print '       You should either use a different queue, or submit a single job without archiving.'
   acme_print '       $debug_queue             = '$debug_queue
   acme_print '       $num_resubmits           = '$num_resubmits
   acme_print '       $do_short_term_archiving = '$do_short_term_archiving
-  exit 17
+  exit 16
+endif
+
+if ( $restart_num != 0 ) then
+  @ remaining_periods = $stop_num - ( $stop_num / $restart_num ) * $restart_num
+  if ( $num_resubmits >= 1 && ( $stop_units != $restart_units || $remaining_periods != 0 ) ) then
+    acme_print 'WARNING: run length is not divisible by the restart write frequency, or the units differ.'
+    acme_print 'If restart write frequency doesnt evenly divide the run length, restarts will simulate the same time period multiple times.'
+    acme_print '         $stop_units        = '$stop_units
+    acme_print '         $stop_num          = '$stop_num
+    acme_print '         $restart_units     = '$restart_units
+    acme_print '         $restart_num       = '$restart_num
+    acme_print '         $remaining_periods = '$remaining_periods
+    acme_print '         $num_resubmits     = '$num_resubmits
+    sleep $seconds_after_warning
+  endif
 endif
 
 #===========================================
@@ -536,7 +538,6 @@ if ( -f ${create_newcase_exe} ) then
   set xmlchange_exe = $case_scripts_dir/xmlchange
   set xmlquery_exe = $case_scripts_dir/xmlquery
   set shortterm_archive_script = $case_scripts_dir/case.st_archive
-  set longterm_archive_script = $case_scripts_dir/case.lt_archive
 else                                                                   # No version of create_newcase found
   acme_print 'ERROR: ${create_newcase_exe} not found'
   acme_print '       This is most likely because fetch_code should be true.'
@@ -768,7 +769,7 @@ endif
 #       https://acme-climate.atlassian.net/wiki/display/WORKFLOW/ACME+Input+Data+Repository
 
 #set input_data_dir = 'input_data_dir_NOT_SET'
-#if ( $machine == 'cori' || $machine == 'edison' ) then
+#if ( $machine == 'cori*' || $machine == 'edison' ) then
 #  set input_data_dir = '/project/projectdirs/m411/ACME_inputdata'    # PJC-NERSC
 ## set input_data_dir = '/project/projectdirs/ccsm1/inputdata'        # NERSC
 #else if ( $machine == 'titan' || $machine == 'eos' ) then
@@ -823,7 +824,7 @@ endif
 if ( `lowercase $debug_queue` == true ) then
   if ( $machine == cab || $machine == sierra ) then
     $xmlchange_exe --id JOB_QUEUE --val 'pdebug'
-  else if ($machine != skybridge ) then
+  else if ($machine != skybridge && $machine != bebop && $machine != blues) then
     $xmlchange_exe --id JOB_QUEUE --val 'debug'
   endif
 endif
@@ -992,7 +993,7 @@ endif
 
 # Set options for batch scripts (see above for queue and batch time, which are handled separately)
 
-# NOTE: This also modifies the short-term and long-term archiving scripts.
+# NOTE: This also modifies the short-term archiving script.
 # NOTE: We want the batch job log to go into a sub-directory of case_scripts (to avoid it getting clogged up)
 
 # NOTE: we are currently not modifying the archiving scripts to run in debug queue when $debug_queue=true
@@ -1009,15 +1010,12 @@ mkdir -p batch_output      ### Make directory that stdout and stderr will go int
 
 set batch_options = ''
 
-if ( $machine == cori || $machine == edison ) then
+if ( $machine =~ 'cori*' || $machine == edison ) then
     set batch_options = "--job-name=${job_name} --output=batch_output/${case_name}.o%j"
 
     sed -i /"#SBATCH \( \)*--job-name"/c"#SBATCH  --job-name=ST+${job_name}"                  $shortterm_archive_script
     sed -i /"#SBATCH \( \)*--job-name"/a"#SBATCH  --account=${project}"                       $shortterm_archive_script
     sed -i /"#SBATCH \( \)*--output"/c'#SBATCH  --output=batch_output/ST+'${case_name}'.o%j'  $shortterm_archive_script
-    sed -i /"#SBATCH \( \)*--job-name"/c"#SBATCH  --job-name=LT+${job_name}"                  $longterm_archive_script
-    sed -i /"#SBATCH \( \)*--job-name"/a"#SBATCH  --account=${project}"                       $longterm_archive_script
-    sed -i /"#SBATCH \( \)*--output"/c'#SBATCH  --output=batch_output/LT+'${case_name}'.o%j'  $longterm_archive_script
 
 else if ( $machine == titan || $machine == eos ) then
     sed -i /"#PBS \( \)*-N"/c"#PBS  -N ${job_name}"                                ${case_run_exe}
@@ -1026,8 +1024,6 @@ else if ( $machine == titan || $machine == eos ) then
 
     sed -i /"#PBS \( \)*-N"/c"#PBS  -N ST+${job_name}"                             $shortterm_archive_script
     sed -i /"#PBS \( \)*-j oe"/a'#PBS  -o batch_output/${PBS_JOBNAME}.o${PBS_JOBID}' $shortterm_archive_script
-    sed -i /"#PBS \( \)*-N"/c"#PBS  -N LT+${job_name}"                             $longterm_archive_script
-    sed -i /"#PBS \( \)*-j oe"/a'#PBS  -o batch_output/${PBS_JOBNAME}.o${PBS_JOBID}' $longterm_archive_script
 
 else if ( $machine == anvil ) then
 # Priority for Anvil
@@ -1063,18 +1059,13 @@ endif
 #endif
 
 #============================================
-# SETUP SHORT AND LONG TERM ARCHIVING
+# SETUP SHORT TERM ARCHIVING
 #============================================
 
-$xmlchange_exe --id DOUT_S    --val `uppercase $do_short_term_archiving`
+$xmlchange_exe --id DOUT_S --val `uppercase $do_short_term_archiving`
 if ( `lowercase $short_term_archive_root_dir` != default ) then
   $xmlchange_exe --id DOUT_S_ROOT --val $short_term_archive_root_dir
 endif
-
-$xmlchange_exe --id DOUT_L_MS --val `uppercase $do_long_term_archiving`
-
-# DOUT_L_MSROOT is the directory in your account on the local mass storage system (typically an HPSS tape system)
-$xmlchange_exe --id DOUT_L_MSROOT --val "ACME_simulation_output/${case_name}"
 
 #============================================
 # COUPLER HISTORY OUTPUT
@@ -1082,7 +1073,6 @@ $xmlchange_exe --id DOUT_L_MSROOT --val "ACME_simulation_output/${case_name}"
 
 #$xmlchange_exe --id HIST_OPTION --val ndays
 #$xmlchange_exe --id HIST_N      --val 1
-
 
 #=======================================================
 # SETUP SIMULATION LENGTH AND FREQUENCY OF RESTART FILES
@@ -1201,7 +1191,7 @@ endif
 
 #NOTE:  This section is for making specific changes to the run options (ie env_run.xml).
 
-#if ( $machine == cori ) then      ### fix pnetcdf problem on Cori. (github #593)
+#if ( $machine == 'cori*' ) then      ### fix pnetcdf problem on Cori. (github #593)
 #  $xmlchange_exe --id PIO_TYPENAME  --val "netcdf"
 #endif
 
@@ -1353,6 +1343,10 @@ acme_newline
 # 3.0.10   2017-06-14    To allow data-atm compsets to work, I added a test for CAM_CONFIG_OPTS. (PJC)
 # 3.0.11   2017-07-14    Replace auto-chaining code with ACME's resubmit feature. Also fix Edison's qos setting (again...) (MD)
 # 3.0.12   2017-07-24    Supports setting the queue priority for anvil. Also move making machine lowercase up to clean some things up (MD)
+# 3.0.13   2017-08-07    Verify that the number of periods between a restart evenly divides the number until the stop with the same units.
+#                        Update the machine check for cori to account for cori-knl (MD)
+# 3.0.14   2017-09-11    Add checks for blues and bebop when trying to use the debug queue. Mostly by Andy Salinger with assist from (MD)
+# 3.0.15   2017-09-18    Removes long term archiving settings, as they no longer exist in CIME (MD)
 #
 # NOTE:  PJC = Philip Cameron-Smith,  PMC = Peter Caldwell, CG = Chris Golaz, MD = Michael Deakin
 

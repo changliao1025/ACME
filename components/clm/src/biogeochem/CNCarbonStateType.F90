@@ -20,6 +20,9 @@ module CNCarbonStateType
   use ColumnType             , only : col_pp                
   use clm_varctl             , only : nu_com, use_ed
   use VegetationType         , only : veg_pp
+
+  ! bgc interface & pflotran
+  use clm_varctl             , only : use_clm_interface, use_pflotran, pf_cmode
   
   ! 
   ! !PUBLIC TYPES:
@@ -96,6 +99,7 @@ module CNCarbonStateType
      real(r8), pointer :: totecosysc_col           (:)     ! col (gC/m2) total ecosystem carbon, incl veg but excl cpool
      real(r8), pointer :: totcolc_col              (:)     ! col (gC/m2) total column carbon, incl veg and cpool
      real(r8), pointer :: totabgc_col              (:)     ! col (gC/m2) total column above ground carbon, excluding som 
+     real(r8), pointer :: totblgc_col              (:)     ! col (gc/m2) total column non veg carbon
 
      ! Balance checks
      real(r8), pointer :: begcb_patch              (:)     ! patch carbon mass, beginning of time step (gC/m**2)
@@ -114,6 +118,7 @@ module CNCarbonStateType
      real(r8), pointer :: cwdc_end_col(:)
      real(r8), pointer :: totlitc_end_col(:)
      real(r8), pointer :: totsomc_end_col(:)
+     real(r8), pointer :: decomp_som2c_vr_col(:,:)
 
    contains
 
@@ -225,9 +230,11 @@ contains
     allocate(this%totvegc_col              (begc :endc))                   ;     this%totvegc_col              (:)   = nan
 
     allocate(this%totabgc_col              (begc :endc))                   ;     this%totabgc_col              (:)   = nan
+    allocate(this%totblgc_col              (begc:endc))                    ;     this%totblgc_col              (:)   = nan
     allocate(this%decomp_cpools_vr_col(begc:endc,1:nlevdecomp_full,1:ndecomp_pools))  
     this%decomp_cpools_vr_col(:,:,:)= nan
 
+    allocate(this%decomp_som2c_vr_col(begc:endc,1:nlevdecomp_full)); this%decomp_som2c_vr_col(:,:)= nan
     allocate(this%begcb_patch (begp:endp));     this%begcb_patch (:) = nan
     allocate(this%begcb_col   (begc:endc));     this%begcb_col   (:) = nan
     allocate(this%endcb_patch (begp:endp));     this%endcb_patch (:) = nan
@@ -766,6 +773,7 @@ contains
        !those variables are now ouput in betr
        this%decomp_cpools_col(begc:endc,:) = spval
        do l  = 1, ndecomp_pools
+          if(trim(decomp_cascade_con%decomp_pool_name_history(l))=='')exit
           if ( nlevdecomp_full > 1 ) then
              data2dptr => this%decomp_cpools_vr_col(:,:,l)
              fieldname = trim(decomp_cascade_con%decomp_pool_name_history(l))//'C_vr'
@@ -1337,6 +1345,7 @@ contains
 
     use restUtilMod
     use ncdio_pio
+    use tracer_varcon  , only : is_active_betr_bgc
     !
     ! !ARGUMENTS:
     class (carbonstate_type) :: this
@@ -2353,7 +2362,17 @@ contains
           end if
        end do
     end if
+    if(is_active_betr_bgc)then
+      if (carbon_type == 'c12') then
+        call restartvar(ncid=ncid, flag=flag, varname='totblgc', xtype=ncd_double,  &
+           dim1name='column', long_name='', units='', &
+           interpinic_flag='interp', readvar=readvar, data=this%totblgc_col)
 
+        call restartvar(ncid=ncid, flag=flag, varname='cwdc', xtype=ncd_double,  &
+           dim1name='column', long_name='', units='', &
+           interpinic_flag='interp', readvar=readvar, data=this%cwdc_col)
+      endif
+    endif
     if (carbon_type == 'c12') then
        if (use_vertsoilc) then
           ptr2d => this%ctrunc_vr_col
@@ -2720,11 +2739,11 @@ contains
               do c = bounds%begc, bounds%endc
                  do j = 1, nlevdecomp
 		    if ( exit_spinup ) then
-		      m = decomp_cascade_con%spinup_factor(k)
-                      if (decomp_cascade_con%spinup_factor(k) > 1) m = m / cnstate_vars%scalaravg_col(c)
+		       m = decomp_cascade_con%spinup_factor(k)
+                       if (decomp_cascade_con%spinup_factor(k) > 1 .and. nu_com .eq. 'RD') m = m / cnstate_vars%scalaravg_col(c)
                     else if ( enter_spinup ) then 
-		      m = 1. / decomp_cascade_con%spinup_factor(k)
-		      if (decomp_cascade_con%spinup_factor(k) > 1) m = m * cnstate_vars%scalaravg_col(c)
+		       m = 1. / decomp_cascade_con%spinup_factor(k)
+		       if (decomp_cascade_con%spinup_factor(k) > 1 .and. nu_com .eq. 'RD') m = m * cnstate_vars%scalaravg_col(c)
 		    end if
                     this%decomp_cpools_vr_col(c,j,k) = this%decomp_cpools_vr_col(c,j,k) * m
                  end do
@@ -2885,7 +2904,7 @@ contains
     use clm_varctl       , only: iulog
     use clm_time_manager , only: get_step_size
     use clm_varcon       , only: secspday
-    use clm_varpar       , only: nlevdecomp, ndecomp_pools 
+    use clm_varpar       , only: nlevdecomp, ndecomp_pools, nlevdecomp_full
     !
     ! !ARGUMENTS:
     class(carbonstate_type) :: this
@@ -2900,6 +2919,7 @@ contains
     integer  :: c,p,j,k,l       ! indices
     integer  :: fp,fc           ! lake filter indices
     real(r8) :: maxdepth        ! depth to integrate soil variables
+    integer  :: nlev
     !-----------------------------------------------------------------------
 
     ! calculate patch -level summary of carbon state
@@ -2979,6 +2999,8 @@ contains
 
     ! column level summary
 
+     nlev = nlevdecomp
+     if (use_pflotran .and. pf_cmode) nlev = nlevdecomp_full
 
 
       ! vertically integrate each of the decomposing C pools
@@ -2989,7 +3011,7 @@ contains
        end do
       end do
       do l = 1, ndecomp_pools
-       do j = 1, nlevdecomp
+       do j = 1, nlev
           do fc = 1,num_soilc
              c = filter_soilc(fc)
              this%decomp_cpools_col(c,l) = &
@@ -3117,7 +3139,7 @@ contains
        c = filter_soilc(fc)
        this%ctrunc_col(c) = 0._r8
     end do
-    do j = 1, nlevdecomp
+    do j = 1, nlev
        do fc = 1,num_soilc
           c = filter_soilc(fc)
           this%ctrunc_col(c) = &
