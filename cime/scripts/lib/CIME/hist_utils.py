@@ -5,7 +5,7 @@ Functions for actions pertaining to history files.
 from CIME.XML.standard_module_setup import *
 from CIME.test_status import TEST_NO_BASELINES_COMMENT
 
-import logging, glob, os, shutil, re, stat
+import logging, glob, os, shutil, re, stat, filecmp
 logger = logging.getLogger(__name__)
 
 def _iter_model_file_substrs(case):
@@ -212,7 +212,13 @@ def _compare_hists(case, from_dir1, from_dir2, suffix1="", suffix2="", outfile_s
             else:
                 comments += "    {} did NOT match {}\n".format(hist1, hist2)
                 comments += "    cat " + cprnc_log_file + "\n"
-                shutil.copy(cprnc_log_file, casedir)
+                expected_log_file = os.path.join(casedir, os.path.basename(cprnc_log_file))
+                if not (os.path.exists(expected_log_file) and filecmp.cmp(cprnc_log_file, expected_log_file)):
+                    try:
+                        shutil.copy(cprnc_log_file, casedir)
+                    except OSError:
+                        logger.warning("Could not copy {} to {}".format(cprnc_log_file, casedir))
+
                 all_success = False
 
     if num_compared == 0:
@@ -403,7 +409,7 @@ def generate_baseline(case, baseline_dir=None, allow_baseline_overwrite=False):
     # drop the date so that the name is generic
     newestcpllogfile = case.get_latest_cpl_log(coupler_log_path=case.get_value("LOGDIR"))
     if newestcpllogfile is None:
-        logger.warn("No cpl.log file found in log directory {}".format(case.get_value("LOGDIR")))
+        logger.warning("No cpl.log file found in log directory {}".format(case.get_value("LOGDIR")))
     else:
         shutil.copyfile(newestcpllogfile,
                     os.path.join(basegen_dir, "cpl.log.gz"))
