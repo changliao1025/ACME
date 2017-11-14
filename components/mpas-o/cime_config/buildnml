@@ -84,6 +84,14 @@ if ( $OCN_GRID eq 'oEC60to30' ) {
         $decomp_date .= '170328';
         $decomp_prefix .= 'mpas-o.graph.info.';
         $restoring_file .= 'sss.monthlyClimatology.PHC2_salx.EC60to30v3wLI.170328.nc';
+	$analysis_mask_file .= 'masks_SingleRegionAtlanticWTransportTransects_EC60to30v3wLI_171116.nc';
+} elsif ( $OCN_GRID eq 'oEC60to30v3wLI_ICG' ) {
+        $ic_date .= '171116';
+        $ic_prefix .= 'oEC60to30v3wLI60lev.restart_theta_year26';
+        $decomp_date .= '170328';
+        $decomp_prefix .= 'mpas-o.graph.info.';
+        $restoring_file .= 'sss.monthlyClimatology.PHC2_salx.EC60to30v3wLI.170328.nc';
+	$analysis_mask_file .= 'masks_SingleRegionAtlanticWTransportTransects_EC60to30v3wLI_171116.nc';
 } elsif ( $OCN_GRID eq 'oQU240' ) {
 	$ic_date .= '151209';
 	$ic_prefix .= 'ocean.QU.240km';
@@ -110,15 +118,19 @@ if ( $OCN_GRID eq 'oEC60to30' ) {
 	$decomp_date .= '151031';
         $decomp_prefix .= 'mpas-o.graph.info.';
 } elsif ( $OCN_GRID eq 'oRRS30to10v3' ) {
-	$ic_date .= '161221';
+	$ic_date .= '171128';
 	$ic_prefix .= 'oRRS30to10v3';
-	$decomp_date .= '161221';
+	$decomp_date .= '171128';
         $decomp_prefix .= 'mpas-o.graph.info.';
-} elsif ( $OCN_GRID eq 'oRRS30to10wLI' ) {
-        $ic_date .= '160930';
-        $ic_prefix .= 'ocean.RRS30to10wLI';
-	$decomp_date .= '160930';
+        $restoring_file .= 'sss.monthlyClimatology.PHC2_salx.2004_08_03.171129.nc';
+	$analysis_mask_file .= 'masks_SingleRegionAtlanticWTransportTransects_RRS30to10v3.nc';
+} elsif ( $OCN_GRID eq 'oRRS30to10v3wLI' ) {
+        $ic_date .= '171109';
+        $ic_prefix .= 'oRRS30to10v3wLI';
+	$decomp_date .= '171109';
         $decomp_prefix .= 'mpas-o.graph.info.';
+        $restoring_file .= 'sss.monthlyClimatology.PHC2_salx.2004_08_03.171121.nc';
+	$analysis_mask_file .= 'masks_SingleRegionAtlanticWTransportTransects_RRS30to10v3wLI.nc';
 } elsif ( $OCN_GRID eq 'oRRS18to6' ) {
 	$ic_date .= '160830';
 	$ic_prefix .= 'ocean.RRS.18-6km';
@@ -488,6 +500,20 @@ if ( -e "$CASEROOT/SourceMods/src.mpaso/$STREAM_NAME" ) {
 	print $stream_file '        <var name="regionsInGroup"/>' . "\n";
 	print $stream_file '</stream>' . "\n";
 	print $stream_file '' . "\n";
+        print $stream_file '<stream name="transectTransportOutput"' . "\n";
+        print $stream_file '        type="output"' . "\n";
+	print $stream_file '        filename_template="mpaso.hist.am.transectTransportOutput.$Y-$M-$D.nc"'. "\n";
+        print $stream_file '        filename_interval="01-00-00_00:00:00"' . "\n";
+        print $stream_file '        clobber_mode="truncate"' . "\n";
+        print $stream_file '        reference_time="0001-01-01_00:00:00"' . "\n";
+        print $stream_file '        output_interval="00-00-01_00:00:00" >' . "\n";
+        print $stream_file '        packages="transectTransportAMPKG"' . "\n";
+	print $stream_file '' . "\n";
+        print $stream_file '        <var name="xtime"/>' . "\n";
+        print $stream_file '        <var name="transectVolumeTransport"/>' . "\n";
+        print $stream_file '        <var name="transectVolumeTransportZ"/>' . "\n";
+        print $stream_file '</stream>' . "\n";
+	print $stream_file '' . "\n";
 	print $stream_file '<stream name="globalStatsOutput"' . "\n";
 	print $stream_file '        type="output"' . "\n";
 	print $stream_file '        io_type="netcdf"' . "\n";
@@ -785,13 +811,14 @@ if ( -e "$CASEROOT/SourceMods/src.mpaso/$STREAM_NAME" ) {
 	print $stream_file '    <var name="RiTopOfCell"/>' . "\n";
 	print $stream_file '    <var name="bulkRichardsonNumber"/>' . "\n";
 	print $stream_file '    <var name="boundaryLayerDepth"/>' . "\n";
-	print $stream_file '    <var name="potentialDensity"/>' . "\n";
 	print $stream_file '    <var name="columnIntegratedSpeed"/>' . "\n";
 	print $stream_file '    <var name="landIceFreshwaterFlux"/>' . "\n";
 	print $stream_file '    <var name="landIceHeatFlux"/>' . "\n";
 	print $stream_file '    <var name="heatFluxToLandIce"/>' . "\n";
 	print $stream_file '    <var name="mocStreamvalLatAndDepth"/>' . "\n";
 	print $stream_file '    <var name="mocStreamvalLatAndDepthRegion"/>' . "\n";
+        print $stream_file '    <var name="transectVolumeTransport"/>' . "\n";
+        print $stream_file '    <var name="transectVolumeTransportZ"/>' . "\n";
 	print $stream_file '    <var name="binBoundaryMocStreamfunction"/>' . "\n";
 	print $stream_file '    <var name="SSHSquared"/>' . "\n";
 	print $stream_file '    <var name="velocityZonalSquared"/>' . "\n";
