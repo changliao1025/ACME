@@ -38,6 +38,7 @@ class Moab(AutotoolsPackage):
     homepage = "https://bitbucket.org/fathomteam/moab"
     url = "http://ftp.mcs.anl.gov/pub/fathom/moab-5.0.0.tar.gz"
 
+    version('tempest_new_api', git='https://bitbucket.org/fathomteam/moab', tag='vijaysm/tempest-new-api')
     version('develop', git='https://bitbucket.org/fathomteam/moab', tag='master')
     version('5.0.0', '1840ca02366f4d3237d44af63e239e3b')
     version('4.9.2', '540931a604c180bbd3c1bb3ee8c51dd0')
@@ -71,7 +72,7 @@ class Moab(AutotoolsPackage):
     conflicts('+pnetcdf', when='~mpi')
     conflicts('+parmetis', when='~mpi')
     conflicts('+coupler', when='~mpi')
-    conflicts('+tempestremap', when='@:5.0.0')
+    conflicts('+tempestremap', when='@4.8.2:5.0.0')
     conflicts('+tempestremap', when='~netcdf')
     # There are many possible variants for MOAB. Here are examples for
     # two of them:
@@ -93,6 +94,7 @@ class Moab(AutotoolsPackage):
     depends_on('zoltan~fortran', when='+zoltan')
     depends_on('netcdf-cxx', when='+tempestremap')
     depends_on('netcdf', when='+tempestremap')
+    depends_on('tempestremap@vijay', when='+tempestremap')
     depends_on('autoconf', when='@develop')
     depends_on('automake', when='@develop')
     depends_on('libtool', when='@develop')
@@ -180,7 +182,7 @@ class Moab(AutotoolsPackage):
             options.append('--without-zoltan')
 
         if '+tempestremap' in spec:
-            options.append('--download-tempestremap')
+            options.append('--with-tempestremap=%s' % spec['tempestremap'].prefix)
             options.append('--with-netcdf-cxx=%s' % spec['netcdf-cxx'].prefix)
 
         if '+debug' in spec:

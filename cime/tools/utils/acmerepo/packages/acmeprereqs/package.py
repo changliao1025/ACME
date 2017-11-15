@@ -65,7 +65,7 @@ class Acmeprereqs(Package):
     depends_on('albany', when='+albany')
     depends_on('trilinos', when='+trilinos')
     depends_on('petsc@3.7.2', when='+petsc')
-    depends_on('moab@develop:+tempestremap+netcdf', when='+moab')
+    depends_on('moab@tempest_new_api:+tempestremap+netcdf', when='+moab')
 
 
     def install(self, spec, prefix):
