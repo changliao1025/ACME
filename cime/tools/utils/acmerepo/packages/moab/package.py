@@ -122,7 +122,8 @@ class Moab(AutotoolsPackage):
                 '--with-mpi=%s' % spec['mpi'].prefix,
                 'CXX=%s' % spec['mpi'].mpicxx,
                 'CC=%s' % spec['mpi'].mpicc,
-                'FC=%s' % spec['mpi'].mpifc
+                'FC=%s' % spec['mpi'].mpifc,
+                'F77=%s' % spec['mpi'].mpif77
             ])
             if '+parmetis' in spec:
                 options.append('--with-parmetis=%s' % spec['parmetis'].prefix)
