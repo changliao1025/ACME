@@ -10,7 +10,7 @@ module prescribed_volcaero
   use tracer_data,  only : trfld, trfile
   use cam_logfile,  only : iulog
   use radconstants,   only: nswbands, nlwbands
-  use volc_rad_data,  only: volc_rad_data_init, advance_volc_rad_data
+  use read_volc_radiation_data,  only: read_volc_radiation_data_init, advance_volc_radiation_data
   implicit none
   private
   save 
@@ -225,7 +225,7 @@ end subroutine prescribed_volcaero_readnl
        specifier_lw(ispf) = trim(adjustl(ext_earth_name))
        
        !BALLI-add comments!!
-       call volc_rad_data_init(specifier_sw, specifier_lw, filename, datapath, data_type, cycle_yr)
+       call read_volc_radiation_data_init(specifier_sw, specifier_lw, filename, datapath, data_type, cycle_yr)
 
     else if(trim(adjustl(file_type))== 'VOLC_MIXING_RATIO') then
 
@@ -293,7 +293,7 @@ end subroutine prescribed_volcaero_readnl
 
     if (trim(adjustl(file_type))== 'VOLC_CMIP6') then
 
-       call advance_volc_rad_data (specifier_sw, specifier_lw, state, pbuf2d)
+       call advance_volc_radiation_data (specifier_sw, specifier_lw, state, pbuf2d)
 
     else if(trim(adjustl(file_type))== 'VOLC_MIXING_RATIO') then
 

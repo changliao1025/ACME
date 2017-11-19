@@ -1,9 +1,40 @@
-module volc_rad_data
+module read_volc_radiation_data
+
+!To do list:
+!1. Handle ALL allocate errors
+!2. Add checks for bands so that model and read in inout file bands match!
+!3. Logic for cyclic time interpolation where we substracted "one_yr" should be generalized
+!4. cleanup
+!5. TESTING TESTING TESTING!!
+
+!-------------------------------------------------------------------------------------------------------
+! What these codes do:
+! ===================
+! These F90 codes read radiation data directly from the prescribed volcanic file. CMIP6 
+! provided this file so that extinction (ext), single scattering albedos(ssa) and asymmetric factors (af)
+! can be directly read from this prescribed file and fed into the model rather than 
+! deriving these quantities from volcanic aerosol mixing ratios (VOLC_MMR). These quantites
+! are used to update model variables only above the tropopause (see aer_rad_props.F90 
+! and modal_aer_opt.F90, look for is_cmip6_volc logical variable) and only 50% contributions
+! at the trpopause layer
+!
+!-------------------------------------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------------------------------------
+!
+! Some shorthand explained:
+! sw = short wave
+! lw = long wave
+! ext = volcanic aerosols extinction
+! ssa = volcanic aerosols single scattering albedo
+! ext = volcanic aerosols asymmetric factors
+! "input file" = prescribed volcanic input file from where 
+!-------------------------------------------------------------------------------------------------------
 
   use pio,            only: pio_inq_dimid, pio_inq_varid, pio_nowrite, file_desc_t, &
        pio_inq_dimlen, pio_get_var
   
-  use radconstants,   only: nswbands, nlwbands
+  use radconstants,   only: nswbands, nlwbands                                    !Number of bands in sw and lw
   use shr_kind_mod,   only: shr_kind_cl,r8 => shr_kind_r8
   use cam_abortutils, only: endrun
   use time_manager,   only: set_time_float_from_date
@@ -15,63 +46,73 @@ module volc_rad_data
   private
   save
 
-  public :: volc_rad_data_init
-  public :: advance_volc_rad_data
+  public :: read_volc_radiation_data_init
+  public :: advance_volc_radiation_data
 
-  type(file_desc_t)  :: piofile                       !input file handle
+  type(file_desc_t)  :: piofile                          !input file handle
 
-  character(len=shr_kind_cl) :: curr_filename         !name of the input file(to use in error messages)
+  character(len=shr_kind_cl) :: curr_filename            !name of the input file(to use in error messages)
   logical :: iscyclic
-  integer, parameter :: ntslc = 2                  !number of time slices to use for time interpolation
+  integer, parameter :: ntslc = 2                        !number of time slices to use for time interpolation
 
-  integer :: mxnflds, mxnflds_sw, mxnflds_lw, nlats, nalts, nalts_int, ntimes !lengths of various fields of input file
+  integer :: mxnflds, mxnflds_sw, mxnflds_lw, nlats 
+  integer :: nalts, nalts_int, ntimes                    !lengths of various fields of input file
   integer :: cnt_sw(4), cnt_lw(4)                        !dimension of data to be read from input file for one time slice
-  integer :: cyc_ndx_beg, cyc_ndx_end, cyc_tsize, cyc_yr_in
+  integer :: cyc_ndx_beg, cyc_ndx_end, cyc_tsize         !variables for cyclical input file
+  integer :: cyc_yr_in
+  integer :: strt_t(4), strt_tp1(4)
   integer, allocatable :: pbuf_idx_sw(:), pbuf_idx_lw(:) !buffer index of all the radiation fields in pbuf
 
-  real(r8) :: neg_huge, one_yr                                   !largest possible negative number
+  real(r8) :: neg_huge, one_yr                           !largest possible negative number;days in a year
+  real(r8) :: deltat, datatimem, datatimep               !two time indices for time interpolation and their difference
 
-  real(r8), allocatable :: lats(:), alts(:), alts_int(:), times(:) !input file dimension values
+  real(r8), allocatable :: wrk_sw(:,:,:,:)               !work arrays for sw and lw
+  real(r8), allocatable :: wrk_lw(:,:,:,:)               !PMC identified a bug here with a wrong order of dims, fixed now
+
+  real(r8), allocatable :: lats(:), alts(:), alts_int(:) !input file dimension values
+  real(r8), allocatable :: times(:) 
+  
   
 contains
   
-  subroutine volc_rad_data_init (specifier_sw, specifier_lw, filename, datapath, &
+  subroutine read_volc_radiation_data_init (specifier_sw, specifier_lw, filename, datapath, &
        data_type, cyc_yr)
 
-    use mo_constants,    only: d2r
-    use spmd_utils,      only: masterproc
+    use mo_constants,    only: d2r        !degree to radians conversion
+    use spmd_utils,      only: masterproc 
     use ioFileMod,       only: getfil
     use cam_pio_utils,   only: cam_pio_openfile
     use physics_buffer,  only: pbuf_get_index
 
     implicit none
     
-    character(len=*), intent(in) :: specifier_sw(:), specifier_lw(:)
-    character(len=*), intent(in) :: filename
-    character(len=*), intent(in) :: datapath
-    character(len=*), intent(in) :: data_type
-    integer,          intent(in) :: cyc_yr
+    character(len=*), intent(in) :: specifier_sw(:), specifier_lw(:) !names of fields in sw and lw to be read from the input file
+    character(len=*), intent(in) :: filename                         !name of the input file
+    character(len=*), intent(in) :: datapath                         !path to input file
+    character(len=*), intent(in) :: data_type                        !SERAIL or CYCLICAL
+    integer,          intent(in) :: cyc_yr                           !cycle year, only used if data_type is CYCLICAL
 
     !Local variables
     character(len=shr_kind_cl) :: filen, filepath
-    logical :: need_first_ndx
+    logical :: need_first_ndx 
 
     integer :: ierr, ifld, errcode
-    integer :: lat_dimid, lev_dimid, tim_dimid, alt_dimid, alt_int_dimid, sw_dimid, lw_dimid, old_dimid
+    integer :: lat_dimid, lev_dimid, tim_dimid, alt_dimid, alt_int_dimid, sw_dimid, lw_dimid, old_dimid !dimension ids
     integer :: itimes
-    integer :: nswbnds_prscb, nlwbnds_prscb, year, month, day, idates
+    integer :: nswbnds_prscb, nlwbnds_prscb !band numbers from the precribed input file
+    integer :: year, month, day, idates
 
     integer, allocatable :: dates(:)
 
-    real(r8) :: time1, time2
+    real(r8) :: time1, time2                !times to compute "one_yr"
 
 
     !BALLI- add comment
 
-    !Currently only handles cyclic or serial data types
+    !Currently only handles cyclic or serial data types; exit if some other data_type detected
     iscyclic = .false.
     if (trim(data_type).ne. 'SERIAL' .and. trim(data_type).ne. 'CYCLICAL') then
-       call endrun ('volc_rad_data.F90:Only SERIAL or CYCLICAL data types supported, current data type is:'//trim(data_type))
+       call endrun ('read_volc_radiation_data.F90:Only SERIAL or CYCLICAL data types supported, current data type is:'//trim(data_type))
     endif
     if (trim(data_type).eq. 'CYCLICAL') then
        iscyclic = .true.
@@ -80,13 +121,16 @@ contains
         
     curr_filename = trim(filename)
     cyc_yr_in     = cyc_yr
-    neg_huge = -1.0_r8* huge(1.0_r8)
+    neg_huge      = -1.0_r8* huge(1.0_r8)
     
-    mxnflds_sw = size( specifier_sw )
-    mxnflds_lw = size( specifier_lw )
+    datatimem     = neg_huge
+    datatimep     = neg_huge
+    
+    mxnflds_sw = size( specifier_sw )!size of sw fields in input file
+    mxnflds_lw = size( specifier_lw )!size of lw fields in input file
     mxnflds = mxnflds_sw + mxnflds_lw
 
-    if (mxnflds < 1) return
+    if (mxnflds < 1) return          !return if no field needs to be read
     
     if (len_trim(datapath) == 0) then
        filepath = trim(filename)
@@ -97,10 +141,10 @@ contains
     ! open file and get fileid 
     call getfil( filepath , filen, 0 )
     call cam_pio_openfile( piofile, filen, PIO_NOWRITE)
-    if(masterproc) write(iulog,*)'open_volc_rad_datafile: ',trim(filen)
+    if(masterproc) write(iulog,*)'open_read_volc_radiation_datafile: ',trim(filen)
 
 
-    !Polulate dates from the volc file
+    !Polulate dates from the volc file, dates stamps are stored in variable "month" in the file
     ierr = pio_inq_dimid( piofile, 'month', old_dimid)
     ! Hack to work with weird netCDF and old gcc or NAG bug.
     tim_dimid = old_dimid
@@ -147,8 +191,8 @@ contains
     
     if(iscyclic) then
        if (cyc_ndx_beg < 0) then
-          write(iulog,*) 'volc_rad_data.F90: subr volc_rad_data_init: cycle year not found : ' , cyc_yr
-          call endrun('volc_rad_data_init:: cycle year not found')
+          write(iulog,*) 'read_volc_radiation_data.F90: subr read_volc_radiation_data_init: cycle year not found : ' , cyc_yr
+          call endrun('read_volc_radiation_data_init:: cycle year not found')
        endif
 
        cyc_tsize = cyc_ndx_end - cyc_ndx_beg + 1 
@@ -182,6 +226,10 @@ contains
     ierr = pio_inq_varid( piofile, 'altitude_int', old_dimid )
     ierr = pio_get_var( piofile, old_dimid, alts_int )
 
+    allocate(wrk_sw(2,nalts,nlats,nswbands))!BALLI- handle erros for allocate everywhere!!
+    allocate(wrk_lw(2,nalts,nlats,nlwbands))
+
+
     ierr = pio_inq_dimid( piofile, 'solar_bands', old_dimid)
     sw_dimid = old_dimid
     ierr = pio_inq_dimlen( piofile, old_dimid, nswbnds_prscb)
@@ -194,7 +242,7 @@ contains
        write(iulog,*)'Bands in volc input file do not match the model bands'
        write(iulog,*)'Bands in volc input file:nswbands,nlwbands:',nswbnds_prscb,nlwbnds_prscb
        write(iulog,*)'Bands in model:nswbands,nlwbands:',nswbands,nlwbands
-       call endrun ("volc_rad_data.F90: shortwave and longwave bands mismatch ")
+       call endrun ("read_volc_radiation_data.F90: shortwave and longwave bands mismatch ")
     endif
 
 
@@ -210,12 +258,19 @@ contains
        pbuf_idx_lw(ifld) = pbuf_get_index(trim(specifier_lw(ifld)),errcode)!BALLI handle error?
     enddo
 
-  end subroutine volc_rad_data_init
+  end subroutine read_volc_radiation_data_init
 
   !------------------------------------------------------------------------------------------------
 
 
-  subroutine advance_volc_rad_data (specifier_sw, specifier_lw, state, pbuf2d )
+  subroutine advance_volc_radiation_data (specifier_sw, specifier_lw, state, pbuf2d )
+    !------------------------------------------------------------------------------------------------
+    !Logic:
+    !Data is read from the prescribed input file and advanced in time. We do not need to read data each
+    !time step but we do need to interpolate the data at each time step as "current model time" changes 
+    !with each time step. "current model time" (variable name:curr_mdl_time) is needed for time 
+    !interpolation, so we have to do time interpolation every time step. Vertical interpolation follows
+    !time interpolation, so we have to do vertical interpolation each time step as well.
     
     use physics_buffer,   only: physics_buffer_desc
     use physics_types,    only: physics_state
@@ -227,13 +282,11 @@ contains
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
     !Local variables
-    integer :: strt_t(4), strt_tp1(4), ifld, ierr, var_id
+    logical :: read_data
+    integer :: ifld, ierr, var_id
     integer :: errcode, yr, mon, day, ncsec, it, itp1, banddim
 
-    real(r8) :: datatimem, datatimep, curr_mdl_time, deltat, fact1, fact2
-    real(r8) :: wrk_sw(2,nalts,nlats,nswbands)  !PMC identified a bug here with a wrong order of dims, fixed now
-    real(r8) :: wrk_lw(2,nalts,nlats,nlwbands)
-
+    real(r8) :: data_time, curr_mdl_time, fact1, fact2
 
   !------------------------------------------------------------------------------------------------
 
@@ -248,40 +301,64 @@ contains
     !from left-hand side of time interval for interpolation for cyclic times to fix 
     !a bug. If curr_mdl_time changes units, this bugfix needs to be generalized.
     call set_time_float_from_date( curr_mdl_time, yr, mon, day, ncsec )
-    
-    call find_times_to_interpolate(curr_mdl_time, datatimem, datatimep, it, itp1)
 
-    deltat = datatimep - datatimem
+    !see if we need to read data (i.e. we are at a time where new data is needed)
+    data_time = datatimep  !get time for second index ("plus" index)
+    
+    !if cyclic, we might need to add "one year" is we are at yearly boundary
+    if ( iscyclic) then
+       ! wrap around                                                                                                                                              
+       if ( (datatimep<datatimem) .and. (curr_mdl_time>datatimem) ) then
+          data_time = data_time + one_yr
+       endif
+    endif
+
+    !if current model time is greater than or equal to second time index, we must move forward 
+    !to increment time indices (first and second) and read the inout file again
+    read_data = .false.
+    if (curr_mdl_time >= data_time ) then
+       !Move forward and get new values for datatimep,datatimem, it and itp1
+       call find_times_to_interpolate(curr_mdl_time, datatimem, datatimep, it, itp1)
+       deltat = datatimep - datatimem
+       !Two time indices for reading data for time interpolation
+       strt_t   = (/ it,   1, 1, 1 /) !index for first time stamp
+       strt_tp1 = (/ itp1, 1, 1, 1 /) !index for second time stamp
+
+       !set read_data to true so that new data is read from the file
+       read_data = .true.
+    endif
+
     fact1 = (datatimep - curr_mdl_time)/deltat
     fact2 = 1._r8-fact1
 
-    !see if we need to read data (i.e. we are at a time where new data is needed)
-    strt_t = (/ it, 1, 1, 1 /)
-    strt_tp1 = (/ itp1, 1, 1, 1 /)
-
-
     do ifld = 1,mxnflds_sw
-       !Get netcdf variable id for the field
-       ierr = pio_inq_varid(piofile, trim(adjustl(specifier_sw(ifld))),var_id) !get id of the variable to read from iput file
+       if (read_data) then
+          !Get netcdf variable id for the field
+          ierr = pio_inq_varid(piofile, trim(adjustl(specifier_sw(ifld))),var_id) !get id of the variable to read from iput file
+          
+          ierr = pio_get_var( piofile, var_id, strt_t  , cnt_sw, wrk_sw(1,:,:,:) )!BALLI: handle error?
+          ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_sw, wrk_sw(2,:,:,:) )!BALLI: handle error?
+       endif
 
-       ierr = pio_get_var( piofile, var_id, strt_t  , cnt_sw, wrk_sw(1,:,:,:) )!BALLI: handle error?
-       ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_sw, wrk_sw(2,:,:,:) )!BALLI: handle error?
-
+       !we always have to do interpolation as current model time changes time factors-fact1 and fact2
        !interpolate in lats, time and vertical
        call interpolate_lats_time_vert(state, wrk_sw, nswbands, pbuf_idx_sw(ifld), fact1, fact2, pbuf2d )
     enddo
 
     do ifld = 1,mxnflds_lw
        !Note that we have to reverse (compared with how they are mentioned in the netcdf file) the array dim sizes
-       ierr = pio_inq_varid(piofile, trim(adjustl(specifier_lw(ifld))),var_id) !get id of the variable to read from iput file
-       ierr = pio_get_var( piofile, var_id, strt_t  , cnt_lw, wrk_lw(1,:,:,:) )!BALLI: handle error?
-       ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_lw, wrk_lw(2,:,:,:) )!BALLI: handle error?
+       if(read_data) then
+          ierr = pio_inq_varid(piofile, trim(adjustl(specifier_lw(ifld))),var_id) !get id of the variable to read from iput file
+          ierr = pio_get_var( piofile, var_id, strt_t  , cnt_lw, wrk_lw(1,:,:,:) )!BALLI: handle error?
+          ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_lw, wrk_lw(2,:,:,:) )!BALLI: handle error?
+       endif
+       !we always have to do interpolation as current model time changes time factors-fact1 and fact2 
        !interpolate in lats, time and vertical
        call interpolate_lats_time_vert(state, wrk_lw, nlwbands, pbuf_idx_lw(ifld), fact1, fact2, pbuf2d )
     enddo
     
         
-  end subroutine advance_volc_rad_data
+  end subroutine advance_volc_radiation_data
 
   !------------------------------------------------------------------------------------------------
 
@@ -325,10 +402,11 @@ contains
              !PMC bugfix: in this case, target x is smaller than the 1st source x,
              !so it=1 and itp1=cyc_tsize. This was causing weird values for interpolation
              !solution: allow datatimep to be a negative number.
+             !BALLI- Needs to be generalized!
              it   = n_out + cyc_ndx_beg-1
              itp1 = cyc_ndx_beg          
              datatimem = times(it)
-             datatimep = times(itp1) - 365.
+             datatimep = times(itp1) - one_yr
              !KLUDGE: line above hardcodes assumption that times are in days. This is 
              !probably ok since curr_mdl_time is also hardcoded to return time in days, 
              !but it would be good to generalize this fix later.
@@ -347,7 +425,7 @@ contains
        endif
     endif
        
-    if(.not.times_found) call endrun ('volc_rad_data.F90: sub find_times_to_interpolate: times not found!')
+    if(.not.times_found) call endrun ('read_volc_radiation_data.F90: sub find_times_to_interpolate: times not found!')
 
   end subroutine find_times_to_interpolate
 
@@ -412,4 +490,4 @@ contains
 
   end subroutine interpolate_lats_time_vert
   
-end module volc_rad_data
+end module read_volc_radiation_data

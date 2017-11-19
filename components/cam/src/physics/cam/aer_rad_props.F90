@@ -12,7 +12,7 @@ use physics_types,    only: physics_state
 
 use physics_buffer, only : physics_buffer_desc, pbuf_get_field, pbuf_get_index
 
-use radconstants,     only: nrh, nswbands, nlwbands, idx_sw_diag, ot_length
+use radconstants,     only: nrh, nswbands, nlwbands, idx_sw_diag,idx_lw_diag, ot_length
 use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_aer_mmr, &
                             rad_cnst_get_aer_props
 use wv_saturation,    only: qsat
@@ -72,6 +72,9 @@ subroutine aer_rad_props_init()
 
    call addfld ('AEROD_v', horiz_only, 'A', '1', &
       'Total Aerosol Optical Depth in visible band', flag_xyfill=.true.)
+   
+   !For testing puposes only, the following addfld call should be removed before merging to master
+   call addfld ('extinct_lw_bnd7',(/ 'lev' /),    'A','/m','EXTINCT LW H2O window band 7 output', flag_xyfill=.true.)
 
    ! Contributions to AEROD_v from individual aerosols (climate species).
 
@@ -242,7 +245,7 @@ subroutine aer_rad_props_sw(list_idx, state, pbuf,  nnite, idxnite, is_cmip6_vol
       !Quit if tropopause is not found
       if (any(trop_level(1:ncol) == -1)) then
          do icol = 1, ncol
-            write(iulog,*)'tropopause level,state%lchnk,column:',trop_level(icol),state%lchnk,icol
+            write(iulog,*)'tropopause level,state%lchnk,column:',trop_level(icol),lchnk,icol
          enddo
          call endrun('aer_rad_props.F90: subr aer_rad_props_sw: tropopause not found')
       endif
@@ -451,7 +454,7 @@ subroutine aer_rad_props_lw(is_cmip6_volc, list_idx, state, pbuf,  odap_aer)
       !Quit if tropopause is not found                                                                                                     
       if (any(trop_level(1:ncol) == -1)) then
          do icol = 1, ncol
-            write(iulog,*)'tropopause level,state%lchnk,column:',trop_level(icol),state%lchnk,icol
+            write(iulog,*)'tropopause level,lchnk,column:',trop_level(icol),lchnk,icol
          enddo
          call endrun('aer_rad_props_lw: tropopause not found')
       endif
@@ -475,6 +478,7 @@ subroutine aer_rad_props_lw(is_cmip6_volc, list_idx, state, pbuf,  odap_aer)
             endif
          enddo
       enddo
+      call outfld('extinct_lw_bnd7',odap_aer(:,:,idx_lw_diag), pcols, lchnk)
    endif
    
    ! Loop over bulk aerosols in list.
