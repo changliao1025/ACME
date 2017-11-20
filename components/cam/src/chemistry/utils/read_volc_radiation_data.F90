@@ -66,8 +66,8 @@ module read_volc_radiation_data
   real(r8) :: neg_huge, one_yr                           !largest possible negative number;days in a year
   real(r8) :: deltat, datatimem, datatimep               !two time indices for time interpolation and their difference
 
-  real(r8), allocatable :: wrk_sw(:,:,:,:)               !work arrays for sw and lw
-  real(r8), allocatable :: wrk_lw(:,:,:,:)               !PMC identified a bug here with a wrong order of dims, fixed now
+  real(r8), allocatable :: wrk_sw(:,:,:,:,:)               !work arrays for sw and lw
+  real(r8), allocatable :: wrk_lw(:,:,:,:,:)               !PMC identified a bug here with a wrong order of dims, fixed now
 
   real(r8), allocatable :: lats(:), alts(:), alts_int(:) !input file dimension values
   real(r8), allocatable :: times(:) 
@@ -226,8 +226,8 @@ contains
     ierr = pio_inq_varid( piofile, 'altitude_int', old_dimid )
     ierr = pio_get_var( piofile, old_dimid, alts_int )
 
-    allocate(wrk_sw(2,nalts,nlats,nswbands))!BALLI- handle erros for allocate everywhere!!
-    allocate(wrk_lw(2,nalts,nlats,nlwbands))
+    allocate(wrk_sw(2,mxnflds_sw,nalts,nlats,nswbands))!BALLI- handle erros for allocate everywhere!!
+    allocate(wrk_lw(2,mxnflds_lw,nalts,nlats,nlwbands))
 
 
     ierr = pio_inq_dimid( piofile, 'solar_bands', old_dimid)
@@ -251,10 +251,10 @@ contains
 
     allocate(pbuf_idx_sw(mxnflds_sw),pbuf_idx_lw(mxnflds_lw))
 
-    do ifld = 1,mxnflds_sw
+    do ifld = 1, mxnflds_sw
        pbuf_idx_sw(ifld) = pbuf_get_index(trim(specifier_sw(ifld)),errcode)!BALLI handle error?
     enddo 
-    do ifld = 1,mxnflds_lw
+    do ifld = 1, mxnflds_lw
        pbuf_idx_lw(ifld) = pbuf_get_index(trim(specifier_lw(ifld)),errcode)!BALLI handle error?
     enddo
 
@@ -336,25 +336,25 @@ contains
           !Get netcdf variable id for the field
           ierr = pio_inq_varid(piofile, trim(adjustl(specifier_sw(ifld))),var_id) !get id of the variable to read from iput file
           
-          ierr = pio_get_var( piofile, var_id, strt_t  , cnt_sw, wrk_sw(1,:,:,:) )!BALLI: handle error?
-          ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_sw, wrk_sw(2,:,:,:) )!BALLI: handle error?
+          ierr = pio_get_var( piofile, var_id, strt_t  , cnt_sw, wrk_sw(1,ifld,:,:,:) )!BALLI: handle error?
+          ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_sw, wrk_sw(2,ifld,:,:,:) )!BALLI: handle error?
        endif
 
        !we always have to do interpolation as current model time changes time factors-fact1 and fact2
        !interpolate in lats, time and vertical
-       call interpolate_lats_time_vert(state, wrk_sw, nswbands, pbuf_idx_sw(ifld), fact1, fact2, pbuf2d )
+       call interpolate_lats_time_vert(state, wrk_sw(:,ifld,:,:,:), nswbands, pbuf_idx_sw(ifld), fact1, fact2, pbuf2d )
     enddo
 
     do ifld = 1,mxnflds_lw
        !Note that we have to reverse (compared with how they are mentioned in the netcdf file) the array dim sizes
        if(read_data) then
           ierr = pio_inq_varid(piofile, trim(adjustl(specifier_lw(ifld))),var_id) !get id of the variable to read from iput file
-          ierr = pio_get_var( piofile, var_id, strt_t  , cnt_lw, wrk_lw(1,:,:,:) )!BALLI: handle error?
-          ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_lw, wrk_lw(2,:,:,:) )!BALLI: handle error?
+          ierr = pio_get_var( piofile, var_id, strt_t  , cnt_lw, wrk_lw(1,ifld,:,:,:) )!BALLI: handle error?
+          ierr = pio_get_var( piofile, var_id, strt_tp1, cnt_lw, wrk_lw(2,ifld,:,:,:) )!BALLI: handle error?
        endif
        !we always have to do interpolation as current model time changes time factors-fact1 and fact2 
        !interpolate in lats, time and vertical
-       call interpolate_lats_time_vert(state, wrk_lw, nlwbands, pbuf_idx_lw(ifld), fact1, fact2, pbuf2d )
+       call interpolate_lats_time_vert(state, wrk_lw(:,ifld,:,:,:), nlwbands, pbuf_idx_lw(ifld), fact1, fact2, pbuf2d )
     enddo
     
         
