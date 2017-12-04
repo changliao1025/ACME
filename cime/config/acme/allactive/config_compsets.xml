@@ -52,6 +52,11 @@
 </compset>
 
 <compset>
+  <alias>A_WCYCL1950S</alias>
+  <lname>1950_CAM5%AV1C-L_CLM45%SPBC_MPASCICE%SPUNUP_MPASO%SPUNUP_MOSART_SGLC_SWAV</lname>
+</compset>
+
+<compset>
   <alias>A_WCYCL1850</alias>
   <lname>1850_CAM5%AV1C-L_CLM45%SPBC_MPASCICE_MPASO_MOSART_SGLC_SWAV</lname>
 </compset>

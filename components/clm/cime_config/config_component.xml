@@ -46,6 +46,7 @@
       <value compset="5505_CAM.*_CLM"   >1850-2100_rcp4.5_transient</value> 
       <value compset="2003.*_CLM"       >2000_control</value>       
       <value compset="1850.*_CLM"       >1850_control</value> 
+      <value compset="1950.*_CLM"       >1950_control</value> 
       <value compset="20TR.*_CLM"       >20thC_transient</value> 
       <value compset="RCP6.*_CLM"       >1850-2100_rcp6_transient</value> 
       <value compset="RCP4.*_CLM"       >1850-2100_rcp4.5_transient</value> 
