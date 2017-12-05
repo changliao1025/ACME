@@ -431,10 +431,10 @@
         clm1pt-0002-11.nc
       </value>
       <value  stream="CLM1PT.CLM_USRDAT">%ym.nc</value>
-      <value  stream="CPLHISTForcing.Solar">$DATM_CPLHIST_CASE.cpl.ha2x1hi.%ym.nc</value>
-      <value  stream="CPLHISTForcing.nonSolarFlux">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ym.nc</value>
-      <value  stream="CPLHISTForcing.State3hr">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ym.nc</value>
-      <value  stream="CPLHISTForcing.State1hr">$DATM_CPLHIST_CASE.cpl.ha2x1h.%ym.nc</value>
+      <value  stream="CPLHISTForcing.Solar">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ymd.nc</value>
+      <value  stream="CPLHISTForcing.nonSolarFlux">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ymd.nc</value>
+      <value  stream="CPLHISTForcing.State3hr">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ymd.nc</value>
+      <value  stream="CPLHISTForcing.State1hr">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ymd.nc</value>
       <value  stream="presaero.cplhist">$DATM_CPLHIST_CASE.cpl.ha2x1d.%ym.nc</value>
       <value  stream="topo.cplhist">$DATM_CPLHIST_CASE.cpl.ha2x3h.%ym.nc</value>
       <value  stream="CLM_QIAN.Solar">clmforc.Qian.c2006.T62.Solr.%ym.nc</value>
@@ -1594,7 +1594,7 @@
     <desc>Stream offset.</desc>
     <values>
       <value>0</value>
-      <value stream="CPLHISTForcing.Solar">2700</value>
+      <value stream="CPLHISTForcing.Solar">900</value>
       <value stream="CPLHISTForcing.nonSolarFlux">900</value>
       <value stream="CPLHISTForcing.State3hr">900</value>
       <value stream="CPLHISTForcing.State1hr">900</value>
@@ -1833,8 +1833,8 @@
       <value stream="CLM1PT.1x1_vancouverCAN">nearest</value>
       <value stream="CLM1PT.1x1_urbanc_alpha">nearest</value>
       <value stream="CLM1PT.CLM_USRDAT">nearest</value>
-      <value stream="CPLHISTForcing.Solar">nearest</value>
-      <value stream="CPLHISTForcing.nonSolarFlux">nearest</value>
+      <value stream="CPLHISTForcing.Solar">coszen</value>
+      <value stream="CPLHISTForcing.nonSolarFlux">linear</value>
       <value stream="CPLHISTForcing.State3hr">linear</value>
       <value stream="CPLHISTForcing.State1hr">linear</value>
       <value stream="presaero.cplhist">nearest</value>
