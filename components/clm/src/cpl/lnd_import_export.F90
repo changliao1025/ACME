@@ -195,7 +195,9 @@ contains
         !on first timestep, read all the met data for relevant gridcell(s) and store in array.
         !   Met data are held in short integer format to save memory.
         !   Each node must have enough memory to hold these data.
-        met_nvars = 7
+        met_nvars=7
+        if (metdata_type(1:3) == 'cpl') met_nvars=14
+
         if (nstep .eq. 0) then
           !meteorological forcing
           if (metdata_type(1:4) == 'qian') then 
@@ -210,7 +212,6 @@ contains
             atm2lnd_vars%metsource = 4
           else if (metdata_type(1:3) == 'cpl') then 
             atm2lnd_vars%metsource = 5
-            met_nvars=14
           else
             call endrun( sub//' ERROR: Invalid met data source for cpl_bypass' )
           end if
@@ -423,6 +424,7 @@ contains
             do while (mystart > 1850)
               mystart = mystart - nyears_spinup
             end do
+            if (atm2lnd_vars%metsource == 5) mystart=1850
 
             if (yr .lt. 1850) then 
               atm2lnd_vars%tindex(g,v,1) = (mod(yr-1,nyears_spinup) + (1850-mystart)) * 365 * nint(24./atm2lnd_vars%timeres(v))
@@ -445,7 +447,7 @@ contains
         else
           do v=1,met_nvars
             if (atm2lnd_vars%npf(v) - 1._r8 .gt. 1e-3) then 
-              if (v == 4 .or. v .eq. 5 .or. (v .ge. 8 .and. v .le. 13)) then    !Precipitation
+              if (v .eq. 4 .or. v .eq. 5 .or. (v .ge. 8 .and. v .le. 13)) then    !rad/Precipitation
                 if (mod(nstep-1,nint(atm2lnd_vars%npf(v))) == 1 .and. nstep .gt. 3) then
                   atm2lnd_vars%tindex(g,v,1) = atm2lnd_vars%tindex(g,v,1)+1
                   atm2lnd_vars%tindex(g,v,2) = atm2lnd_vars%tindex(g,v,2)+1
@@ -559,6 +561,8 @@ contains
         end if
         
         if (atm2lnd_vars%metsource == 5) then 
+            wt2(4)=1.0   !cosz interp not working 
+            wt2(8:10)=1.0
             swndf = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
                                      atm2lnd_vars%add_offsets(4))*wt2(4)), 0.0_r8)
             swndr = max(((atm2lnd_vars%atm_input(8,g,1,tindex(8,2))*atm2lnd_vars%scale_factors(8)+ &
@@ -567,6 +571,10 @@ contains
                                      atm2lnd_vars%add_offsets(9))*wt2(9)), 0.0_r8)
             swvdr = max(((atm2lnd_vars%atm_input(10,g,1,tindex(10,2))*atm2lnd_vars%scale_factors(10)+ &
                                      atm2lnd_vars%add_offsets(10))*wt2(10)), 0.0_r8)
+            atm2lnd_vars%forc_solad_grc(g,2) = swndr
+            atm2lnd_vars%forc_solad_grc(g,1) = swvdr
+            atm2lnd_vars%forc_solai_grc(g,2) = swndf
+            atm2lnd_vars%forc_solai_grc(g,1) = swvdf
         else
             swndr = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
                                      atm2lnd_vars%add_offsets(4))*wt2(4)) * 0.50_R8, 0.0_r8)
@@ -576,16 +584,15 @@ contains
                                     atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8, 0.0_r8)
             swvdf = max(((atm2lnd_vars%atm_input(4,g,1,tindex(4,2))*atm2lnd_vars%scale_factors(4)+ &
                                     atm2lnd_vars%add_offsets(4))*wt2(4))*0.50_R8, 0.0_r8)
+            ratio_rvrf =   min(0.99_R8,max(0.29548_R8 + 0.00504_R8*swndr &
+                           -1.4957e-05_R8*swndr**2 + 1.4881e-08_R8*swndr**3,0.01_R8))
+            atm2lnd_vars%forc_solad_grc(g,2) = ratio_rvrf*swndr
+            atm2lnd_vars%forc_solai_grc(g,2) = (1._R8 - ratio_rvrf)*swndf
+            ratio_rvrf =   min(0.99_R8,max(0.17639_R8 + 0.00380_R8*swvdr  &
+                               -9.0039e-06_R8*swvdr**2 +8.1351e-09_R8*swvdr**3,0.01_R8))
+            atm2lnd_vars%forc_solad_grc(g,1) = ratio_rvrf*swvdr
+            atm2lnd_vars%forc_solai_grc(g,1) = (1._R8 - ratio_rvrf)*swvdf
         end if
-        ratio_rvrf =   min(0.99_R8,max(0.29548_R8 + 0.00504_R8*swndr &
-                            -1.4957e-05_R8*swndr**2 + 1.4881e-08_R8*swndr**3,0.01_R8))
-        atm2lnd_vars%forc_solad_grc(g,2) = ratio_rvrf*swndr
-        atm2lnd_vars%forc_solai_grc(g,2) = (1._R8 - ratio_rvrf)*swndf
-        ratio_rvrf =   min(0.99_R8,max(0.17639_R8 + 0.00380_R8*swvdr  &
-                           -9.0039e-06_R8*swvdr**2 +8.1351e-09_R8*swvdr**3,0.01_R8))
-        atm2lnd_vars%forc_solad_grc(g,1) = ratio_rvrf*swvdr
-        atm2lnd_vars%forc_solai_grc(g,1) = (1._R8 - ratio_rvrf)*swvdf
-
 !Rain and snow
         if (atm2lnd_vars%metsource == 5) then 
             forc_rainc = max((((atm2lnd_vars%atm_input(5,g,1,tindex(5,2))*atm2lnd_vars%scale_factors(5)+ &
@@ -970,10 +977,9 @@ contains
        atm2lnd_vars%forc_wind_grc(g)  = sqrt(atm2lnd_vars%forc_u_grc(g)**2 + atm2lnd_vars%forc_v_grc(g)**2)
        atm2lnd_vars%forc_solar_grc(g) = atm2lnd_vars%forc_solad_grc(g,1) + atm2lnd_vars%forc_solai_grc(g,1) + &
                                         atm2lnd_vars%forc_solad_grc(g,2) + atm2lnd_vars%forc_solai_grc(g,2)
-
+       
        atm2lnd_vars%forc_rain_not_downscaled_grc(g)  = forc_rainc + forc_rainl
        atm2lnd_vars%forc_snow_not_downscaled_grc(g)  = forc_snowc + forc_snowl
-
        if (forc_t > SHR_CONST_TKFRZ) then
           e = esatw(tdc(forc_t))
        else
