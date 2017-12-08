@@ -1,9 +1,12 @@
 <?xml version="1.0"?>
 <namelist_defaults>
 
-<!-- Solar constant from Lean (via Caspar Ammann) -->
-<solar_data_file>atm/cam/solar/spectral_irradiance_Lean_1850_cntl_c100407.nc</solar_data_file>
-<solar_data_ymd>18500101</solar_data_ymd>
+<!-- Set default output options for CMIP6 simulations -->
+<cosp_lite>.true.</cosp_lite>
+
+<!-- Solar constant from CMIP6 input4MIPS -->
+<solar_data_file>atm/cam/solar/Solar_1950control_input4MIPS_c20171206.nc</solar_data_file>
+<solar_data_ymd>19500101</solar_data_ymd>
 <solar_data_type>FIXED</solar_data_type>
 
 <!-- 1850 GHG values from AR5 (from ghg_hist_1765-2012_c130501.nc) -->
@@ -101,31 +104,31 @@
 <prescribed_ozone_type>CYCLICAL</prescribed_ozone_type>
 <prescribed_ozone_cycle_yr>1850</prescribed_ozone_cycle_yr>
 
-<!-- External forcing for BAM or MAM -->
-<ext_frc_type>CYCLICAL</ext_frc_type>
-<ext_frc_cycle_yr>1850</ext_frc_cycle_yr>
-<so2_ext_file         >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_so2_elev_1850_c160310.nc</so2_ext_file>
-<soag_ext_file	      >atm/cam/chem/trop_mozart_aero/emis/aces4bgc_nvsoa_soag_elev_1850_c160507.nc</soag_ext_file>
-<bc_a4_ext_file       >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_bc_elev_1850_c160310.nc</bc_a4_ext_file>
-<mam7_num_a1_ext_file >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam4_num_a1_elev_1850_c160310.nc</mam7_num_a1_ext_file>
-<num_a2_ext_file      >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_num_a2_elev_1850_c160310.nc</num_a2_ext_file>
-<mam7_num_a3_ext_file >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam4_num_a4_elev_1850_c160310.nc</mam7_num_a3_ext_file> <!-- This is to set num_a4 emissions -->
-<pom_a4_ext_file      >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_pom_elev_1850_c160310.nc</pom_a4_ext_file>
-<so4_a1_ext_file      >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_so4_a1_elev_1850_c160310.nc</so4_a1_ext_file>
-<so4_a2_ext_file      >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_so4_a2_elev_1850_c160310.nc</so4_a2_ext_file>
+<!-- External forcing for BAM or MAM.  CMIP6 input4mips data -->
+<ext_frc_type         >CYCLICAL</ext_frc_type>
+<ext_frc_cycle_yr     >1950</ext_frc_cycle_yr>
+<so2_ext_file         >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so2_elev_1950-1960_c171020.nc </so2_ext_file>
+<soag_ext_file	      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_soag_elev_1950-1960_c171020.nc </soag_ext_file>
+<bc_a4_ext_file       >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_bc_a4_elev_1950-1960_c171020.nc </bc_a4_ext_file>
+<mam7_num_a1_ext_file >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a1_elev_1950-1960_c171020.nc </mam7_num_a1_ext_file>
+<num_a2_ext_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a2_elev_1950-1960_c171020.nc </num_a2_ext_file>
+<mam7_num_a3_ext_file >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a4_elev_1950-1960_c171020.nc </mam7_num_a3_ext_file> <!-- This is to set num_a4 emissions -->
+<pom_a4_ext_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_pom_a4_elev_1950-1960_c171020.nc </pom_a4_ext_file>
+<so4_a1_ext_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so4_a1_elev_1950-1960_c171020.nc </so4_a1_ext_file>
+<so4_a2_ext_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so4_a2_elev_1950-1960_c171020.nc </so4_a2_ext_file>
 
-<!-- Surface emissions for MAM4 -->
-<srf_emis_type>CYCLICAL</srf_emis_type>
-<srf_emis_cycle_yr>1850</srf_emis_cycle_yr>
-<dms_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DMSflux.1850.1deg_latlon_conserv.POPmonthlyClimFromACES4BGC_c20160416.nc</dms_emis_file>
-<so2_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_so2_surf_1850_c160310.nc</so2_emis_file>
-<bc_a4_emis_file      >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_bc_surf_1850_c160310.nc</bc_a4_emis_file>
-<mam7_num_a1_emis_file>atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam4_num_a1_surf_1850_c160310.nc</mam7_num_a1_emis_file> 
-<num_a2_emis_file     >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_num_a2_surf_1850_c160310.nc</num_a2_emis_file>
-<mam7_num_a3_emis_file>atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam4_num_a4_surf_1850_c160310.nc</mam7_num_a3_emis_file> <!-- This is to set num_a4 emissions -->
-<pom_a4_emis_file     >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_pom_surf_1850_c160310.nc</pom_a4_emis_file>
-<so4_a1_emis_file     >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_so4_a1_surf_1850_c160310.nc</so4_a1_emis_file>
-<so4_a2_emis_file     >atm/cam/chem/trop_mozart_aero/emis/1850ar5/ar5_mam3_so4_a2_surf_1850_c160310.nc</so4_a2_emis_file>
+<!-- Surface emissions for MAM4.  CMIP6 input4mips data -->
+<srf_emis_type        >CYCLICAL</srf_emis_type>
+<srf_emis_cycle_yr    >1950</srf_emis_cycle_yr>
+<dms_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DMSflux.1950.1deg_latlon_conserv.POPmonthlyClimFromACES4BGC_c20171208.nc</dms_emis_file>
+<so2_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so2_surf_1950-1960_c171020.nc </so2_emis_file>
+<bc_a4_emis_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_bc_a4_surf_1950-1960_c171020.nc </bc_a4_emis_file>
+<mam7_num_a1_emis_file>atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a1_surf_1950-1960_c171020.nc </mam7_num_a1_emis_file> 
+<num_a2_emis_file     >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a2_surf_1950-1960_c171020.nc </num_a2_emis_file>
+<mam7_num_a3_emis_file>atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a4_surf_1950-1960_c171020.nc </mam7_num_a3_emis_file> <!-- This is to set num_a4 emissions -->
+<pom_a4_emis_file     >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_pom_a4_surf_1950-1960_c171020.nc </pom_a4_emis_file>
+<so4_a1_emis_file     >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so4_a1_surf_1950-1960_c171020.nc </so4_a1_emis_file>
+<so4_a2_emis_file     >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so4_a2_surf_1950-1960_c171020.nc </so4_a2_emis_file>
 
 <!-- Prescribed oxidants for aerosol chemistry -->
 <tracer_cnst_type    >CYCLICAL</tracer_cnst_type>
@@ -154,5 +157,9 @@
 
 <!-- sim_year used for CLM datasets and SSTs forcings -->
 <sim_year>1850</sim_year>
+
+<!-- land datasets -->
+<!-- Set in components/clm/bld/namelist_files/use_cases/1850_CMIP6_control.xml -->
+
 
 </namelist_defaults>

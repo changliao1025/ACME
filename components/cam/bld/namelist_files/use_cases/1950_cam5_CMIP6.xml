@@ -110,8 +110,6 @@
 <prescribed_ozone_type    >CYCLICAL</prescribed_ozone_type>
 <prescribed_ozone_cycle_yr>1850</prescribed_ozone_cycle_yr>
 
-1950-1960_c171020
-
 <!-- External forcing for BAM or MAM.  CMIP6 input4mips data -->
 <ext_frc_type         >CYCLICAL</ext_frc_type>
 <ext_frc_cycle_yr     >1950</ext_frc_cycle_yr>
@@ -127,8 +125,8 @@
 
 <!-- Surface emissions for MAM4.  CMIP6 input4mips data -->
 <srf_emis_type        >CYCLICAL</srf_emis_type>
-<srf_emis_cycle_yr    >1850</srf_emis_cycle_yr>
-<dms_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DMSflux.1850.1deg_latlon_conserv.POPmonthlyClimFromACES4BGC_c20160416.nc</dms_emis_file>
+<srf_emis_cycle_yr    >1950</srf_emis_cycle_yr>
+<dms_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DMSflux.1950.1deg_latlon_conserv.POPmonthlyClimFromACES4BGC_c20171208.nc</dms_emis_file>
 <so2_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so2_surf_1950-1960_c171020.nc </so2_emis_file>
 <bc_a4_emis_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_bc_a4_surf_1950-1960_c171020.nc </bc_a4_emis_file>
 <mam7_num_a1_emis_file>atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a1_surf_1950-1960_c171020.nc </mam7_num_a1_emis_file> 
