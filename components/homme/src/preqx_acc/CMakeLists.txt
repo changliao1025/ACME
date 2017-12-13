@@ -106,7 +106,6 @@ SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OPENACC_Fortran_FLAGS}")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OPENACC_Linker_FLAGS}")
 
 # nested openMP would never be used with openACC
-SET(NESTED_OPENMP FALSE )
 SET(COLUMN_OPENMP FALSE )
 
 endmacro(preqx_acc_setup)

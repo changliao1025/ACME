@@ -77,9 +77,6 @@ IF (PREQX_QSIZE_D)
 ENDIF ()
 
 SET(USE_OPENACC FALSE)
-IF (${ENABLE_HORIZ_OPENMP} AND ${ENABLE_COLUMN_OPENMP})
-  SET(NESTED_OPENMP TRUE CACHE BOOL "Both horizontal and column threading")
-ENDIF ()
 
 endmacro(theta_setup)
 
