@@ -5,7 +5,7 @@
 <cosp_lite>.true.</cosp_lite>
 
 <!-- Solar constant from CMIP6 input4MIPS -->
-<solar_data_file>atm/cam/solar/Solar_1950control_input4MIPS_c20171206.nc</solar_data_file>
+<solar_data_file>atm/cam/solar/Solar_1950control_input4MIPS_c20171208.nc</solar_data_file>
 <solar_data_ymd>19500101</solar_data_ymd>
 <solar_data_type>FIXED</solar_data_type>
 
@@ -101,15 +101,6 @@
 <l_ieflx_fix> .true.</l_ieflx_fix>
 <ieflx_opt  > 2     </ieflx_opt>
 
-
-<!-- 1850 ozone data is from Jean-Francois Lamarque -->
-<!-- NOTE: I don't think this is used when rad_climate uses advected O3, but I don't think it does any harm either -->
-<prescribed_ozone_datapath>atm/cam/ozone</prescribed_ozone_datapath>
-<prescribed_ozone_file    >ozone_1.9x2.5_L26_1850clim_c090420.nc</prescribed_ozone_file>
-<prescribed_ozone_name    >O3</prescribed_ozone_name>
-<prescribed_ozone_type    >CYCLICAL</prescribed_ozone_type>
-<prescribed_ozone_cycle_yr>1850</prescribed_ozone_cycle_yr>
-
 <!-- External forcing for BAM or MAM.  CMIP6 input4mips data -->
 <ext_frc_type         >CYCLICAL</ext_frc_type>
 <ext_frc_cycle_yr     >1950</ext_frc_cycle_yr>
@@ -126,7 +117,7 @@
 <!-- Surface emissions for MAM4.  CMIP6 input4mips data -->
 <srf_emis_type        >CYCLICAL</srf_emis_type>
 <srf_emis_cycle_yr    >1950</srf_emis_cycle_yr>
-<dms_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DMSflux.1950.1deg_latlon_conserv.POPmonthlyClimFromACES4BGC_c20171208.nc</dms_emis_file>
+<dms_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DMSflux.1950.1deg_latlon_conserv.POPmonthlyClimFromACES4BGC_c20171210.nc</dms_emis_file>
 <so2_emis_file	      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_so2_surf_1950-1960_c171020.nc </so2_emis_file>
 <bc_a4_emis_file      >atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_bc_a4_surf_1950-1960_c171020.nc </bc_a4_emis_file>
 <mam7_num_a1_emis_file>atm/cam/chem/trop_mozart_aero/emis/DECK_ne30/cmip6_mam4_num_a1_surf_1950-1960_c171020.nc </mam7_num_a1_emis_file> 
