@@ -1,6 +1,5 @@
 # CMake initial cache file for Cori Phase 1 (cori-haswell)
 
-#SET (HOMME_FIND_BLASLAPACK "TRUE" CACHE FILEPATH "")
 SET (HOMME_USE_MKL "TRUE" CACHE FILEPATH "") # for Intel
 
 SET (CMAKE_Fortran_COMPILER ftn CACHE FILEPATH "")
