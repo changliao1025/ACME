@@ -228,29 +228,22 @@ runTestsStd() {
     subJobName=`basename ${subFile} .sh`
     #echo "subJobName=$subJobName"
 
-    # setup file for stdout and stderr redirection
-    THIS_STDOUT=${subJobName}.out
-    THIS_STDERR=${subJobName}.err
-
     # Run the command
-    # For some reason bsub must not be part of a string
     echo -n "Running test ${subJobName} ... "
-    #echo "${subFile} > $THIS_STDOUT 2> $THIS_STDERR"
     chmod u+x ${subFile}
-    cmd="${subFile} > $THIS_STDOUT 2> $THIS_STDERR"
-    echo "$cmd"
-    $cmd
+    echo ${subFile}
+    ${subFile}
     # Get the status of the run
     RUN_STAT=$?
-    # Do some error checking
     if [ $RUN_STAT = 0 ]; then
       # the command was succesful
       echo "test ${subJobName} was run successfully"
       SUBMIT_TEST+=( "${subJobName}" )
       SUBMIT_JOB_ID+=( "${RUN_PID}" )
     else 
-      echo "failed with message:"
-      cat $THIS_STDERR
+      echo "runscript failed."
+      echo "script: ${subFile}"
+      echo "see .out and .err files in script directory"
       exit -7
     fi
   done
