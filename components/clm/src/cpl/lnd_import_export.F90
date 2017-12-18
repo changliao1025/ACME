@@ -272,9 +272,9 @@ contains
             atm2lnd_vars%endyear_met_trans  = 2010
          end if
          if (atm2lnd_vars%metsource == 5) then
-            atm2lnd_vars%startyear_met      = 51
-            atm2lnd_vars%endyear_met_spinup = 76
-            atm2lnd_vars%endyear_met_trans  = 76
+            atm2lnd_vars%startyear_met      = 76
+            atm2lnd_vars%endyear_met_spinup = 100
+            atm2lnd_vars%endyear_met_trans  = 100
          end if
 
 
@@ -354,7 +354,7 @@ contains
                      '_1901-2010_z' // zst(2:3) // '.nc', NF90_NOWRITE, met_ncids(v))
             else if (atm2lnd_vars%metsource == 5) then 
               ierr = nf90_open(trim(metdata_bypass) // '/WCYCL1850S.ne30_' // trim(metvars(v)) // &
-                     '_0051-0076_z' // zst(2:3) // '.nc', NF90_NOWRITE, met_ncids(v))
+                     '_0076-0100_z' // zst(2:3) // '.nc', NF90_NOWRITE, met_ncids(v))
             end if
             if (ierr .ne. 0) call endrun(msg=' ERROR: Failed to open cpl_bypass input meteorology file' )
        
@@ -501,10 +501,10 @@ contains
 
 
         !Air pressure
-        atm2lnd_vars%forc_pbot_not_downscaled_grc(g) = ((atm2lnd_vars%atm_input(2,g,1,tindex(2,1))*atm2lnd_vars%scale_factors(2)+ &
+        atm2lnd_vars%forc_pbot_not_downscaled_grc(g) = max(((atm2lnd_vars%atm_input(2,g,1,tindex(2,1))*atm2lnd_vars%scale_factors(2)+ &
                                                         atm2lnd_vars%add_offsets(2))*wt1(2) + (atm2lnd_vars%atm_input(2,g,1,tindex(2,2)) &
                                                         *atm2lnd_vars%scale_factors(2)+atm2lnd_vars%add_offsets(2))*wt2(2)) * &
-                                                        atm2lnd_vars%var_mult(2,g,mon) + atm2lnd_vars%var_offset(2,g,mon)        
+                                                        atm2lnd_vars%var_mult(2,g,mon) + atm2lnd_vars%var_offset(2,g,mon), 4e4_r8)       
         !Specific humidity
         atm2lnd_vars%forc_q_not_downscaled_grc(g) = max(((atm2lnd_vars%atm_input(3,g,1,tindex(3,1))*atm2lnd_vars%scale_factors(3)+ &
                                                      atm2lnd_vars%add_offsets(3))*wt1(3) + (atm2lnd_vars%atm_input(3,g,1,tindex(3,2)) &
@@ -521,18 +521,19 @@ contains
           atm2lnd_vars%forc_q_not_downscaled_grc(g) = qsat * atm2lnd_vars%forc_q_not_downscaled_grc(g) / 100.0_r8
         end if
 
-        !Longwave radiation (calculated from air temperature, humidity)
-        !e =  atm2lnd_vars%forc_pbot_not_downscaled_grc(g) * atm2lnd_vars%forc_q_not_downscaled_grc(g) / &
-        !     (0.622_R8 + 0.378_R8 * atm2lnd_vars%forc_q_not_downscaled_grc(g) )
-        !ea = 0.70_R8 + 5.95e-05_R8 * 0.01_R8 * e * exp(1500.0_R8/tbot)
-        !atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ea * SHR_CONST_STEBOL * tbot**4
-
         !use longwave from file if provided
         atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ((atm2lnd_vars%atm_input(7,g,1,tindex(7,1))*atm2lnd_vars%scale_factors(7)+ &
                                                         atm2lnd_vars%add_offsets(7))*wt1(7) + (atm2lnd_vars%atm_input(7,g,1,tindex(7,2)) &
                                                         *atm2lnd_vars%scale_factors(7)+atm2lnd_vars%add_offsets(7))*wt2(7)) * &
                                                         atm2lnd_vars%var_mult(7,g,mon) + atm2lnd_vars%var_offset(7,g,mon)  
- 
+        if (atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) .le. 50 .or. atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) .ge. 600) then 
+        !Longwave radiation (calculated from air temperature, humidity)
+            e =  atm2lnd_vars%forc_pbot_not_downscaled_grc(g) * atm2lnd_vars%forc_q_not_downscaled_grc(g) / &
+                 (0.622_R8 + 0.378_R8 * atm2lnd_vars%forc_q_not_downscaled_grc(g) )
+            ea = 0.70_R8 + 5.95e-05_R8 * 0.01_R8 * e * exp(1500.0_R8/tbot)
+            atm2lnd_vars%forc_lwrad_not_downscaled_grc(g) = ea * SHR_CONST_STEBOL * tbot**4
+        end if 
+
         !Shortwave radiation (cosine zenith angle interpolation)
         thiscosz = max(cos(szenith(ldomain%lonc(g),ldomain%latc(g),0,int(thiscalday),tod/3600,mod(tod,3600)/60, get_step_size())* &
                           3.14159265358979/180.0d0), 0.001d0)

@@ -611,13 +611,17 @@ contains
              if ( (errlon(p) /= spval) .and. (abs(errlon(p)) > 1.e-3_r8) ) then
                 found = .true.
                 indexp = p
+                indexc = veg_pp%column(indexp)
              end if
           end if
        end do
        if ( found  .and. (nstep > 2) ) then
           write(iulog,*)'BalanceCheck: longwave energy balance error (W/m2)'
-          write(iulog,*)'nstep        = ',nstep
-          write(iulog,*)'errlon       = ',errlon(indexp)
+          write(iulog,*)'nstep          = ',nstep
+          write(iulog,*)'eflx_lwrad_out = ',eflx_lwrad_out(indexp)
+          write(iulog,*)'eflx_lwrad_net = ',eflx_lwrad_net(indexp) 
+          write(iulog,*)'forc_lwrad     = ',forc_lwrad(indexc)
+          write(iulog,*)'errlon         = ',errlon(indexp)
           call endrun(decomp_index=indexp, clmlevel=namep, msg=errmsg(__FILE__, __LINE__))
        end if
 
