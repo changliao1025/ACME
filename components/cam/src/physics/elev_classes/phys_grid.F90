@@ -133,8 +133,8 @@ module phys_grid
 !   integer, private :: clat_p_tot ! number of unique latitudes
 !   integer, private :: clon_p_tot ! number of unique longitudes
 ! these are public to support mozart chemistry in the short term
-   integer, public :: clat_p_tot ! number of unique latitudes
-   integer, public :: clon_p_tot ! number of unique longitudes
+   integer, private :: clat_p_tot ! number of unique latitudes
+   integer, private :: clon_p_tot ! number of unique longitudes
 
    integer, dimension(:), allocatable, private :: clat_p_cnt ! number of repeats for each latitude
    integer, dimension(:), allocatable, private :: clat_p_idx ! index in latlon ordering for first occurence
@@ -163,13 +163,10 @@ module phys_grid
    end type chunk
 
    integer :: nchunks                  ! global chunk count
-   type (chunk), dimension(:), allocatable, public :: chunks  
+   type (chunk), dimension(:), allocatable, private :: chunks
                                        ! global computational grid
 
-!!XXgoldyXX: v this should be private!
-   integer, dimension(:), allocatable, public :: npchunks 
-!   integer, dimension(:), allocatable, private :: npchunks 
-!!XXgoldyXX: ^ this should be private
+   integer, dimension(:), allocatable, private :: npchunks 
                                        ! number of chunks assigned to each process
 
    type lchunk
