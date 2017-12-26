@@ -326,7 +326,7 @@ contains
     !-----------------------------------------------------------------------
     use pmgrid, only: plev
     use dycore, only: dycore_is
-    use dyn_grid, only: get_block_bounds_d, &
+    use dyn_grid, only: get_block_bounds_d, dyn_decomp, get_dyn_grid_parm, &
          get_block_gcol_d, get_block_gcol_cnt_d, &
          get_block_levels_d, get_block_lvl_cnt_d, &
          get_block_owner_d, &
@@ -336,6 +336,7 @@ contains
     use cam_grid_support, only: cam_grid_register, iMap, max_hcoordname_len
     use cam_grid_support, only: horiz_coord_t, horiz_coord_create
     use cam_grid_support, only: cam_grid_attribute_copy
+    use elev_classes,     only: ec_active, elevation_classes_init
 
     !
     !------------------------------Arguments--------------------------------
@@ -402,6 +403,11 @@ contains
     character(len=max_hcoordname_len)   :: copy_gridname
     logical                             :: unstructured
     real(r8)                            :: lonmin, latmin
+
+    ! Data for elevation classes
+    integer,                allocatable :: num_subgrids(:,:)
+    real(r8),               allocatable :: subgrid_area(:,:,:)
+    real(r8),               allocatable :: subgrid_elev(:,:,:)
 
     nullify(lonvals)
     nullify(latvals)
@@ -587,6 +593,20 @@ contains
     ! Determine block index bounds
     !
     call get_block_bounds_d(firstblock,lastblock)
+
+    ! We might need copy_gridname now (but it is always used to set up physgrid)
+    nullify(copy_attributes)
+    call physgrid_copy_attributes_d(copy_gridname, copy_attributes)
+    ! Initialize elevation classes
+    !--------------------------------
+    if (ec_active) then
+      ! The get_dyn_grid_parm calls are a bit of a hack but there is no better
+      ! way to recover that information
+      call elevation_classes_init(trim(copy_gridname), &
+           (get_dyn_grid_parm('endlonxy') - get_dyn_grid_parm('beglonxy')), &
+           (lastblock - firstblock + 1), &
+           num_subgrids, subgrid_area, subgrid_elev)
+    end if
 
     ! Allocate storage to save number of chunks and columns assigned to each
     ! process during chunk creation and assignment
@@ -1055,8 +1075,7 @@ contains
     call cam_grid_register('physgrid', phys_decomp, lat_coord, lon_coord,     &
          grid_map, unstruct=unstructured, block_indexed=.true.)
     ! Copy required attributes from the dynamics array
-    nullify(copy_attributes)
-    call physgrid_copy_attributes_d(copy_gridname, copy_attributes)
+    ! Note, copy_attributes obtained above
     do i = 1, size(copy_attributes)
       call cam_grid_attribute_copy(copy_gridname, 'physgrid', copy_attributes(i))
     end do
@@ -4123,6 +4142,7 @@ logical function phys_grid_initialized ()
 
    allocate( col_smp_mapx(ngcols) )
 !
+!!XXgoldyXX: Put EC info here
    col_smp_mapx(:) = -1
    error = .false.
    do i=1,ngcols_p

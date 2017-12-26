@@ -686,7 +686,6 @@ subroutine phys_init( phys_state, phys_tend, pbuf2d, cam_out )
     use radheat,            only: radheat_init
     use radiation,          only: radiation_init
     use cloud_diagnostics,  only: cloud_diagnostics_init
-    use ec_coupling,        only: ec_active
     use stratiform,         only: stratiform_init
     use wv_saturation,      only: wv_sat_init
     use microp_driver,      only: microp_driver_init
@@ -1846,6 +1845,7 @@ subroutine tphysbc (ztodt,               &
     use subcol,          only: subcol_gen, subcol_ptend_avg
     use subcol_utils,    only: subcol_ptend_copy, is_subcol_on
     use phys_control,    only: use_qqflx_fixer, use_mass_borrower
+    use elev_classes,    only: ec_active
 
     implicit none
 
@@ -2193,55 +2193,54 @@ subroutine tphysbc (ztodt,               &
     !===================================================
     ! Global mean total energy fixer
     !===================================================
-if (l_bc_energy_fix) then
+    if (l_bc_energy_fix) then
 
-    call t_startf('energy_fixer')
+      call t_startf('energy_fixer')
 
-    !*** BAB's FV heating kludge *** save the initial temperature
-    tini(:ncol,:pver) = state%t(:ncol,:pver)
-    if (dycore_is('LR') .or. dycore_is('SE'))  then
-       call check_energy_fix(state, ptend, nstep, flx_heat)
-       call physics_update(state, ptend, ztodt, tend)
-       call check_energy_chng(state, tend, "chkengyfix", nstep, ztodt, zero, zero, zero, flx_heat)
-    end if
-    ! Save state for convective tendency calculations.
-    call diag_conv_tend_ini(state, pbuf)
+      !*** BAB's FV heating kludge *** save the initial temperature
+      tini(:ncol,:pver) = state%t(:ncol,:pver)
+      if (dycore_is('LR') .or. dycore_is('SE'))  then
+        call check_energy_fix(state, ptend, nstep, flx_heat)
+        call physics_update(state, ptend, ztodt, tend)
+        call check_energy_chng(state, tend, "chkengyfix", nstep, ztodt, zero, zero, zero, flx_heat)
+      end if
+      ! Save state for convective tendency calculations.
+      call diag_conv_tend_ini(state, pbuf)
 
-    call cnst_get_ind('CLDLIQ', ixcldliq)
-    call cnst_get_ind('CLDICE', ixcldice)
-    qini     (:ncol,:pver) = state%q(:ncol,:pver,       1)
-    cldliqini(:ncol,:pver) = state%q(:ncol,:pver,ixcldliq)
-    cldiceini(:ncol,:pver) = state%q(:ncol,:pver,ixcldice)
+      call cnst_get_ind('CLDLIQ', ixcldliq)
+      call cnst_get_ind('CLDICE', ixcldice)
+      qini     (:ncol,:pver) = state%q(:ncol,:pver,       1)
+      cldliqini(:ncol,:pver) = state%q(:ncol,:pver,ixcldliq)
+      cldiceini(:ncol,:pver) = state%q(:ncol,:pver,ixcldice)
 
+      call outfld('TEOUT', teout       , pcols, lchnk   )
+      call outfld('TEINP', state%te_ini, pcols, lchnk   )
+      call outfld('TEFIX', state%te_cur, pcols, lchnk   )
 
-    call outfld('TEOUT', teout       , pcols, lchnk   )
-    call outfld('TEINP', state%te_ini, pcols, lchnk   )
-    call outfld('TEFIX', state%te_cur, pcols, lchnk   )
-
-    ! set and output the dse change due to dynpkg
-    if( nstep > dyn_time_lvls-1 ) then
-       do k = 1,pver
+      ! set and output the dse change due to dynpkg
+      if( nstep > dyn_time_lvls-1 ) then
+        do k = 1,pver
           dtcore(:ncol,k) = (tini(:ncol,k) - dtcore(:ncol,k))/(ztodt) + tend%dTdt(:ncol,k)
-       end do
-       call outfld( 'DTCORE', dtcore, pcols, lchnk )
+        end do
+        call outfld( 'DTCORE', dtcore, pcols, lchnk )
+      end if
+
+      call t_stopf('energy_fixer')
+
     end if
+    !==================================================
+    ! Orograhic Forcing
+    !==================================================
+    if (ec_active)then
 
-    call t_stopf('energy_fixer')
+      call t_startf ('topog')
+      call topog_tend(state, ptend, ztodt)
+      call t_stopf ('topog')
+      call physics_update(state, ptend, ztodt, tend)
 
-end if
-!==================================================
-! Orograhic Forcing
-!==================================================
-if (ec_active)then
-
-   call t_startf ('topog')
-   call topog_tend(state, ptend )
-   call t_stopf ('topog')
-   call physics_update(state, ptend, ztodt, tend)
-
-! re-initialize here because topog changes column energy, moisture
-   call check_energy_timestep_init(state, tend, pbuf)
-end if
+      ! re-initialize here because topog changes column energy, moisture
+      call check_energy_timestep_init(state, tend, pbuf)
+    end if
     !
     !===================================================
     ! Dry adjustment

@@ -7,6 +7,7 @@ module ec_coupling
   use shr_kind_mod,   only: r8 => shr_kind_r8, SHR_KIND_CL
   use constituents,   only: pcnst, cnst_name
   use physics_types,  only: physics_state
+  use elev_classes,   only: max_elevation_classes
 
   implicit none
   private
@@ -50,8 +51,6 @@ module ec_coupling
 
 
   ! Public module variables
-  logical, public              :: ec_active = .false.
-  integer, public              :: max_elevation_classes = 1
   ! ec_sets holds information about the elevation classes on a PE (task)
   !    A single task can hold one or more sets of elevation classes.
   !    A set of elevation classes is all the elevation classes making up one
@@ -59,17 +58,12 @@ module ec_coupling
   !    
   type(phys_column_t), public, allocatable :: ec_sets(:,:) ! # EC sets on this PE (task)
 
-  ! Private module variables
-  character(len=SHR_KIND_CL)   :: elevation_classes
-!This should move to dyn_grid
 !  type(phys_column_t), pointer :: phys_columns(:,:) ! (nphys_pts, nelemd)
 
   ! Public interface functions
   public avg_elevation_classes_to_phys_state
   public dyn_state_to_elevation_classes
   public elevation_classes_to_dyn_tend
-  public elevation_classes_readnl
-  public elevation_classes_init
 
 CONTAINS
 
@@ -475,116 +469,5 @@ CONTAINS
     deallocate(tend)
 
   end subroutine elevation_classes_to_dyn_tend
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!
-!!  This code should be called from dyn_comp
-!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  subroutine elevation_classes_readnl(NLFilename)
-    use namelist_utils, only: find_group_name
-    use units,          only: getunit, freeunit
-    use spmd_utils,     only: masterproc, masterprocid, mpicom
-    use spmd_utils,     only: mpi_integer, mpi_logical, mpi_character
-    use cam_abortutils, only: endrun
-    use cam_logfile,    only: iulog
-
-    ! Dymmy arguments
-    character(len=*),    intent(in)  :: NLFileName
-
-    ! Local variables
-    integer                          :: ierr
-    integer                          :: unitn
-
-    namelist /ctl_nl/ elevation_classes
-
-    ! Default is no elevation classes
-    elevation_classes = ''
-
-    ! Read the namelist
-    if (masterproc) then
-      unitn = getunit()
-      open(unitn, file=trim(NLFilename), status='old')
-      call find_group_name(unitn, 'ctl_nl', status=ierr)
-      if (ierr == 0) then
-        read(unitn, ctl_nl, iostat=ierr)
-        if (ierr /= 0) then
-          call endrun('elevation_classes_readnl: ERROR reading namelist')
-        end if
-      end if
-      close(unitn)
-      call freeunit(unitn)
-
-      if (len_trim(elevation_classes) > 0) then
-        write(iulog, *) 'Elevation Classes will be read from ',trim(elevation_classes)
-      else
-        write(iulog, *) 'Elevation Classes are disabled'
-      end if
-    end if
-
-    call mpi_bcast(elevation_classes, len(elevation_classes), mpi_character, masterprocid, mpicom, ierr)
-      
-  end subroutine elevation_classes_readnl
-
-  subroutine elevation_classes_init(input_gridname, pts_per_block, numblocks, &
-    num_subgrids, subgrid_area, subgrid_elev)
-    use ncdio_atm,        only: infld
-    use cam_pio_utils,    only: cam_pio_openfile, cam_pio_closefile
-    use cam_pio_utils,    only: cam_pio_handle_error
-    use pio,              only: PIO_NOWRITE, PIO_inq_dimid, PIO_inq_dimlen
-    use pio,              only: file_desc_t
-
-    !! Dummy arguments
-    character(len=*),      intent(in)  :: input_gridname
-    integer,               intent(in)  :: pts_per_block
-    integer,               intent(in)  :: numblocks
-    integer,  allocatable, intent(out) :: num_subgrids(:,:)
-    real(r8), allocatable, intent(out) :: subgrid_area(:,:,:)
-    real(r8), allocatable, intent(out) :: subgrid_elev(:,:,:)
-
-    !! Local variables
-    type(file_desc_t)                  :: fh_ec
-    integer                            :: ierr
-    integer                            :: dimid
-    logical                            :: found
-    character(len=*), parameter        :: subname = 'ELEVATION_CLASSES_INIT'
-
-    call cam_pio_openfile(fh_ec, trim(elevation_classes), PIO_NOWRITE)
-
-    ! We need to know the maximum number of elevation classes
-    ierr = PIO_inq_dimid(fh_ec, 'MaxNoClass', dimid)
-    call cam_pio_handle_error(ierr, subname//': Error finding dimension, MaxNoClass')
-    ierr = PIO_inq_dimlen(fh_ec, dimid, max_elevation_classes)
-    
-    ! Read the relevant variables
-    if (allocated(num_subgrids)) then
-      deallocate(num_subgrids)
-    end if
-    allocate(num_subgrids(pts_per_block, numblocks))
-    num_subgrids = 0
-    call infld('NumSubgrids', fh_ec, 'ncol', 'MaxNoClass', 1, pts_per_block,  &
-         1, numblocks, num_subgrids, found, gridname=trim(input_gridname))
-
-    if (allocated(subgrid_area)) then
-      deallocate(subgrid_area)
-    end if
-    allocate(subgrid_area(pts_per_block, max_elevation_classes, numblocks))
-    subgrid_area = 0.0_r8
-    call infld('SubgridAreaFrac', fh_ec, 'ncol', 'MaxNoClass',                &
-         1, pts_per_block, 1, max_elevation_classes, 1, numblocks,            &
-         subgrid_area, found, gridname=trim(input_gridname))
-
-    if (allocated(subgrid_elev)) then
-      deallocate(subgrid_elev)
-    end if
-    allocate(subgrid_elev(pts_per_block, max_elevation_classes, numblocks))
-    subgrid_elev = 0.0_r8
-    call infld('AveSubgridElv', fh_ec, 'ncol', 'MaxNoClass',                  &
-         1, pts_per_block, 1, max_elevation_classes, 1, numblocks,            &
-         subgrid_elev, found, gridname=trim(input_gridname))
-
-    call cam_pio_closefile(fh_ec)
-  end subroutine elevation_classes_init
 
 end module ec_coupling

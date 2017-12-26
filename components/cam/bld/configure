@@ -1999,6 +1999,11 @@ if($dyn_pkg eq 'se'){
     $cfg_cppdefs .= " -DCAM  -D_WK_GRAD -D_PRIM ";
 }
 
+# elevation classes option
+if (defined $opts{'elev_classes'}) {
+    $cfg_ref->set('elev_classes', $opts{'elev_classes'});
+}
+
 # CICE ice model
 $cfg_cppdefs .= $cice_cppdefs;
 
@@ -2728,9 +2733,6 @@ sub write_filepath
 	my $CASEROOT = "$ENV{'CASEROOT'}";
 	print $fh "$CASEROOT/SourceMods/src.cam\n";
     }
-
-    # offline unit driver (defaults to stub)
-    print $fh "$camsrcdir/cam/src/unit_drivers\n";
 
     if ($carma ne 'none') {
 	# This directory needs to precede physics/cam/ to replace
