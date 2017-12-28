@@ -2002,6 +2002,10 @@ if($dyn_pkg eq 'se'){
 # elevation classes option
 if (defined $opts{'elev_classes'}) {
     $cfg_ref->set('elev_classes', $opts{'elev_classes'});
+    # Currently elevation classes is only supported in the SE dycore
+    if($dyn_pkg ne 'se'){
+      die "Elevation classes only supported by SE dycore.$eol";
+    }
 }
 
 # CICE ice model
