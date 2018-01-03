@@ -5,9 +5,11 @@
 module ec_coupling
 
   use shr_kind_mod,   only: r8 => shr_kind_r8, SHR_KIND_CL
-  use constituents,   only: pcnst, cnst_name
-  use physics_types,  only: physics_state
+  use constituents,   only: pcnst
   use elev_classes,   only: max_elevation_classes
+  use ppgrid,         only: begchunk, endchunk
+  use phys_grid,      only: grid_chunk_s, grid_chunk_e
+  use physics_types,  only: physics_state
 
   implicit none
   private
@@ -23,32 +25,12 @@ module ec_coupling
   !    The first dimension of ec_loc matches area and elevation
   type, public :: phys_column_t
     integer                          :: num_elevation_classes
-    real(r8),            allocatable :: area(:)                !  fraction?
+    real(r8),            allocatable :: area(:)                ! fraction?
     real(r8),            allocatable :: elevation(:)           ! m
     ! The second dimension of ec_loc are for the chunk index and column
     integer,             allocatable :: ec_loc(:,:)            ! (#ecs, 2)
-    type(physics_state), allocatable :: grid_phys_state
+    integer                          :: grid_mean_loc(2)
   end type phys_column_t
-
-  ! ec_state_t is used to hold information on a physics state or tendency or
-  !            a dynamics state or tendency
-  !            The first dimension is usually the number of points per
-  !            block (dynamics) or chunk (physics) while the last dimension
-  !            is the block or chunk number.
-  !            Middle dimensions are number of levels and tracer number.
-  type, public :: ec_state_t
-    real(r8), allocatable :: u(:,:,:)
-    real(r8), allocatable :: v(:,:,:)
-    real(r8), allocatable :: t(:,:,:)
-    real(r8), allocatable :: omega(:,:,:)
-    real(r8), allocatable :: ps(:,:)
-    real(r8), allocatable :: phis(:,:)
-    real(r8), allocatable :: q(:,:,:,:)
-  contains
-    procedure          :: allocate      => ec_state_allocate
-    procedure          :: copy          => ec_state_copy
-  end type ec_state_t
-
 
   ! Public module variables
   ! ec_sets holds information about the elevation classes on a PE (task)
@@ -56,9 +38,10 @@ module ec_coupling
   !    A set of elevation classes is all the elevation classes making up one
   !          physics grid cell (typically the same as a GLL cell).
   !    
-  type(phys_column_t), public, allocatable :: ec_sets(:,:) ! # EC sets on this PE (task)
+  type(phys_column_t), allocatable :: ec_sets(:) ! # EC sets on this PE (task)
 
-!  type(phys_column_t), pointer :: phys_columns(:,:) ! (nphys_pts, nelemd)
+  ! We need to keep track of the previous grid-mean dynamics state
+  type(physics_state), allocatable :: prev_dyn_state(:)
 
   ! Public interface functions
   public avg_elevation_classes_to_phys_state
@@ -71,180 +54,44 @@ CONTAINS
 
   !---------------------------------------------------------------------------
   !
-  !  ec_state_allocate
-  !
-  !  Allocate the variables inside an ec_state object
-  !
-  !---------------------------------------------------------------------------
-  subroutine ec_state_allocate(this, nphys, nlev, nelem, pcnst)
-    class(ec_state_t), intent(inout)    :: this
-    integer,           intent(in)       :: nphys
-    integer,           intent(in)       :: nlev
-    integer,           intent(in)       :: nelem
-    integer,           intent(in)       :: pcnst
-
-    ! Check u to see if the shape is correct
-    if (allocated(this%u)) then
-      if ( (size(this%u, 1) /= nphys) .or. (size(this%u, 2) /= nlev) .or.     &
-           (size(this%u, 3) /= nelem)) then
-        deallocate(this%u)
-      end if
-    end if
-
-    ! Check v to see if the shape is correct
-    if (allocated(this%v)) then
-      if ( (size(this%v, 1) /= nphys) .or. (size(this%v, 2) /= nlev) .or.     &
-           (size(this%v, 3) /= nelem)) then
-        deallocate(this%v)
-      end if
-    end if
-
-    ! Check T to see if the shape is correct
-    if (allocated(this%T)) then
-      if ( (size(this%T, 1) /= nphys) .or. (size(this%T, 2) /= nlev) .or.     &
-           (size(this%T, 3) /= nelem)) then
-        deallocate(this%T)
-      end if
-    end if
-
-    ! Check omega to see if the shape is correct
-    if (allocated(this%omega)) then
-      if ( (size(this%omega, 1) /= nphys) .or.                                &
-           (size(this%omega, 2) /= nlev) .or.                                 &
-           (size(this%omega, 3) /= nelem)) then
-        deallocate(this%omega)
-      end if
-    end if
-
-    ! Check ps to see if the shape is correct
-    if (allocated(this%ps)) then
-      if ( (size(this%ps, 1) /= nphys) .or. (size(this%ps, 2) /= nelem)) then
-        deallocate(this%ps)
-      end if
-    end if
-
-    ! Check phis to see if the shape is correct
-    if (allocated(this%phis)) then
-      if ( (size(this%phis, 1) /= nphys) .or. (size(this%phis, 2) /= nelem)) then
-        deallocate(this%phis)
-      end if
-    end if
-
-    ! Check q to see if the shape is correct
-    if (allocated(this%Q)) then
-      if ( (size(this%Q, 1) /= nphys) .or. (size(this%Q, 2) /= nlev) .or.     &
-           (size(this%Q, 3) /= pcnst) .or. (size(this%Q, 4) /= nelem)) then
-        deallocate(this%Q)
-      end if
-    end if
-
-    if (.not. allocated(this%u)) then
-      allocate(this%u(nphys, nlev, nelem))
-    end if
-
-    if (.not. allocated(this%v)) then
-      allocate(this%v(nphys, nlev, nelem))
-    end if
-
-    if (.not. allocated(this%T)) then
-      allocate(this%T(nphys, nlev, nelem))
-    end if
-
-    if (.not. allocated(this%omega)) then
-      allocate(this%omega(nphys, nlev, nelem))
-    end if
-
-    if (.not. allocated(this%ps)) then
-      allocate(this%ps(nphys, nelem))
-    end if
-
-    if (.not. allocated(this%phis)) then
-      allocate(this%phis(nphys, nelem))
-    end if
-
-    if (.not. allocated(this%Q)) then
-      allocate(this%Q(nphys, nlev, pcnst, nelem))
-    end if
-
-  end subroutine ec_state_allocate
-  
-  !---------------------------------------------------------------------------
-  !
-  !  ec_state_copy
-  !
-  !  Copy the contents of one elevation class state into another
-  !        Allocate variables, if necessary
-  !
-  !---------------------------------------------------------------------------
-  subroutine ec_state_copy(this, ec_state)
-    ! Dummy arguments
-    class(ec_state_t), intent(inout) :: this
-    class(ec_state_t), intent(in)    :: ec_state
-
-    ! Local variables
-    integer                          :: nphys
-    integer                          :: nlev
-    integer                          :: nelem
-    integer                          :: pcnst
-
-    if ( (.not. allocated(this%u))  .or. (.not. allocated(this%v))     .or.   &
-         (.not. allocated(this%t))  .or. (.not. allocated(this%omega)) .or.   &
-         (.not. allocated(this%ps)) .or. (.not. allocated(this%phis))  .or.   &
-         (.not. allocated(this%Q))) then
-      ! Assume we can use any ec_state variable for size information
-      nphys = size(ec_state%u, 1)
-      nlev  = size (ec_state%u, 2)
-      nelem = size(ec_state%u, 3)
-      pcnst = size(ec_state%Q, 3)
-      call this%allocate(nphys, nlev, nelem, pcnst)
-    end if
-
-    this%u     = ec_state%u
-    this%v     = ec_state%v
-    this%t     = ec_state%t
-    this%omega = ec_state%omega
-    this%ps    = ec_state%ps
-    this%phis  = ec_state%phis
-    this%Q     = ec_state%Q
-
-  end subroutine ec_state_copy
-
-  !---------------------------------------------------------------------------
-  !
   !  avg_elevation_classes_to_phys_state
   !
   !  Average a set of elevation class state or tendencies to the grid cell mean
   !
   !---------------------------------------------------------------------------
-  subroutine avg_elevation_classes_to_phys_state(ec_phys_state)
-    use ppgrid,         only: begchunk, endchunk, pcols, pver
+  subroutine avg_elevation_classes_to_phys_state(phys_state)
+    use ppgrid,         only: pcols, pver
 
     ! Dummy arguments
-    type(physics_state), intent(in) :: ec_phys_state(begchunk:endchunk)
+    type(physics_state), intent(inout) :: phys_state(begchunk:grid_chunk_e)
 
     ! Local variables
     integer                         :: set, k, ic
-    integer                         :: chnk, lcnhk, col
+    integer                         :: gchnk, lchnk, gcol, lcol
     real(r8)                        :: accum(pver)
     real(r8)                        :: area, atemp
 
-    do chnk = begchunk, endchunk
-      do set = 1, size(ec_sets, 1)
-        accum(:) = 0._r8
-        area = 0._r8
-        do ic = 1, ec_sets(set, chnk)%num_elevation_classes
-          lcnhk = ec_sets(set, chnk)%ec_loc(ic, 1)
-          col = ec_sets(set, chnk)%ec_loc(ic, 2)
-          atemp = ec_sets(set, chnk)%area(ic)
+    ! Loop over our ec_sets, averaging the elevation class columns
+    do set = 1, size(ec_sets, 1)
+      accum(:) = 0._r8
+      area = 0._r8
+      if (ec_sets(set)%num_elevation_classes > 1) then
+        ! If # classes == 1, then average and EC column are the same
+        do ic = 1, ec_sets(set)%num_elevation_classes
+          lchnk = ec_sets(set)%ec_loc(ic, 1)
+          lcol = ec_sets(set)%ec_loc(ic, 2)
+          atemp = ec_sets(set)%area(ic)
           ! Average physics state U (weighted by area?)
-          accum(:) = accum(:) + (ec_phys_state(lcnhk)%u(col,:) * atemp)
+          accum(:) = accum(:) + (phys_state(lchnk)%u(lcol,:) * atemp)
           area = area + atemp
         end do ! End loop over elevation classes
         !$omp parallel do private(k)
         do k = 1, pver
-          ec_sets(set, chnk)%grid_phys_state%u(1,k) = accum(k) / area
+          gchnk = ec_sets(set)%grid_mean_loc(1)
+          gcol = ec_sets(set)%grid_mean_loc(2)
+          phys_state(gchnk)%u(gcol, k) = accum(k) / area
         end do
-      end do
+      end if
     end do
   end subroutine avg_elevation_classes_to_phys_state
 
@@ -255,116 +102,113 @@ CONTAINS
   !  Create a dynamics tendency and apply it to phys_state
   !
   !---------------------------------------------------------------------------
-  subroutine dyn_state_to_elevation_classes(curr_dyn_state, prev_dyn_state, phys_state, phys_columns, dt)
-    use physconst,  only: rair, gravit
-    use hycoef,     only: hyam, hybm, hyai, hybi, ps0
+  subroutine dyn_state_to_elevation_classes(dt, curr_dyn_state, phys_state)
+    use physics_types, only: physics_state_copy
+    use physconst,     only: rair, gravit
+    use hycoef,        only: hyam, hybm, hyai, hybi, ps0
+
     ! Dummy arguments
-    type(ec_state_t),             intent(in)    :: curr_dyn_state
-    type(ec_state_t),             intent(in)    :: prev_dyn_state
-    type(ec_state_t),             intent(inout) :: phys_state
-    type(phys_column_t), pointer, intent(in)    :: phys_columns(:,:)
-    real(r8),                     intent(in)    :: dt
+    real(r8),            intent(in)    :: dt
+    type(physics_state), intent(in)    :: curr_dyn_state(grid_chunk_s:grid_chunk_e)
+    type(physics_state), intent(inout) :: phys_state(begchunk:grid_chunk_e)
 
     ! Local variables
-    integer                            :: ie, i, m, k, ic, nlev
-    integer                            :: index, index2
-    integer                            :: pt_beg, pt_end, blk_beg, blk_end
+    integer                            :: set, m, k, ic, nlev
+    integer                            :: gchnk, lchnk, gcol, lcol
     real(r8), allocatable              :: tend(:)
     real(r8)                           :: work1(max_elevation_classes), work2
 
-    nlev = size(curr_dyn_state%u, 2)
+    nlev = size(curr_dyn_state(grid_chunk_s)%u, 2)
     allocate(tend(nlev))
-    pt_beg  = LBOUND(phys_columns, 1)
-    pt_end  = UBOUND(phys_columns, 1)
-    blk_beg = LBOUND(phys_columns, 2)
-    blk_end = UBOUND(phys_columns, 2)
-    do ie = blk_beg, blk_end  ! Loop over blocks
-      ! Apply U (equally to each elevation class)
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          phys_state%u(index,:,ie) = curr_dyn_state%u(i,:,ie)
-        end do
-      end do
 
-      ! Apply V (equally to each elevation class)
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          phys_state%v(index,:,ie) = curr_dyn_state%v(i,:,ie)
-        end do
+    ! Traverse the EC sets and apply dynamics update
+    do set = 1, size(ec_sets, 1)
+      gchnk = ec_sets(set)%grid_mean_loc(1)
+      gcol = ec_sets(set)%grid_mean_loc(2)
+      ! Calculate the T tendency
+      if (allocated(prev_dyn_state)) then
+        tend(:) = curr_dyn_state(gchnk)%T(gcol,:) - prev_dyn_state(gchnk)%T(gcol,:)
+      else
+        tend(:) = curr_dyn_state(gchnk)%T(gcol,:)
+      end if
+      ! Calculate the work
+      work2 = 0.0_r8
+      do ic = 1, ec_sets(set)%num_elevation_classes
+        lchnk = ec_sets(set)%ec_loc(ic, 1)
+        lcol = ec_sets(set)%ec_loc(ic, 2)
+        work1(ic) = exp(-((gravit*ec_sets(set)%elevation(ic)) -              &
+             curr_dyn_state(gchnk)%phis(gcol))                /              &
+             (rair * curr_dyn_state(gchnk)%T(gcol,nlev)))
+        work2 = work2 + ec_sets(set)%area(ic) * work1(ic)
       end do
-
-      ! Apply T dynamics tendency
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        tend(:) = curr_dyn_state%t(i,:,ie) - prev_dyn_state%t(i,:,ie)
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          phys_state%T(index,:,ie) = phys_state%T(index,:,ie) + tend(:)
-        end do
+      ! Update elevation classes
+      do ic = 1, ec_sets(set)%num_elevation_classes
+        lchnk = ec_sets(set)%ec_loc(ic, 1)
+        lcol = ec_sets(set)%ec_loc(ic, 2)
+        ! Apply U (equally to each elevation class)
+        phys_state(lchnk)%u(lcol,:) = curr_dyn_state(gchnk)%u(gcol,:)
+        ! Apply V (equally to each elevation class)
+        phys_state(lchnk)%v(lcol,:) = curr_dyn_state(gchnk)%v(gcol,:)
+        ! Apply T dynamics tendency
+        phys_state(lchnk)%T(lcol,:) = phys_state(lchnk)%T(lcol,:) + tend(:)
+        ! Apply omega to each elevation class
+        phys_state(lchnk)%omega(lcol,:) = curr_dyn_state(gchnk)%omega(gcol,:)
+        ! Apply PHIS 
+        phys_state(lchnk)%phis(lcol) = gravit*ec_sets(set)%elevation(ic)
+        ! Apply work to PS
+        phys_state(lchnk)%ps(lcol) = curr_dyn_state(gchnk)%ps(gcol) * work1(ic) / work2
       end do
+    end do
 
-      ! Apply omega 
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          phys_state%omega(index,:,ie) = curr_dyn_state%omega(i,:,ie)
-        end do
-      end do
-
-      ! Apply PHIS 
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          phys_state%phis(index,ie) = gravit*phys_columns(i, ie)%elevation(ic)
-        end do
-      end do
-
-      ! Apply PS 
-      index = 0
-      index2 = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        work2=0.0_r8
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index2 = index2 + 1
-          work1(ic)=exp(-(phys_state%phis(index2,ie)-curr_dyn_state%phis(i,ie))/(rair*curr_dyn_state%t(i,nlev,ie)))
-          work2=work2 + phys_columns(i, ie)%area(ic)*work1(ic)
-        end do
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          phys_state%ps(index,ie) = curr_dyn_state%ps(i,ie)*work1(ic)/work2
-        end do
-      end do
-
-      ! Apply Q dynamics tendency
-      do m = 1, pcnst
-        index = 0
-        do i = pt_beg, pt_end ! Loop over physics columns in an element
-          tend(:) = curr_dyn_state%q(i,:,m,ie) - prev_dyn_state%q(i,:,m,ie) ! change due to dynamics
-          do ic = 1, phys_columns(i, ie)%num_elevation_classes
-            index = index + 1
-            do k=1,nlev
-              if(tend(k).le. 0._r8)then
-                if(prev_dyn_state%q(i,k,m,ie) > 0._r8)then
-                  phys_state%q(index,k,m,ie) = phys_state%q(index,k,m,ie) + &
-                       tend(k)*phys_state%q(index,k,m,ie)  / prev_dyn_state%q(i,k,m,ie)
+    ! Apply Q dynamics tendency
+    do m = 1, pcnst
+      ! Traverse the EC sets and apply dynamics update
+      do set = 1, size(ec_sets, 1)
+        gchnk = ec_sets(set)%grid_mean_loc(1)
+        gcol = ec_sets(set)%grid_mean_loc(2)
+        ! Find the tracer tendency
+        if (allocated(prev_dyn_state)) then
+          tend(:) = curr_dyn_state(gchnk)%q(gcol,:,m) - prev_dyn_state(gchnk)%q(gcol,:,m) ! change due to dynamics
+        else
+          tend(:) = curr_dyn_state(gchnk)%q(gcol,:,m) ! just use current value
+        end if
+        ! Update elevation classes
+        do ic = 1, ec_sets(set)%num_elevation_classes
+          lchnk = ec_sets(set)%ec_loc(ic, 1)
+          lcol = ec_sets(set)%ec_loc(ic, 2)
+          do k = 1, nlev
+!!XXgoldyXX: No use of area?
+            if(tend(k) <= 0._r8) then
+              if (allocated(prev_dyn_state)) then
+                if(prev_dyn_state(gchnk)%q(gcol,k,m) > 0._r8) then
+                  phys_state(lchnk)%q(lcol,k,m) = phys_state(lchnk)%q(lcol,k,m) + &
+                       tend(k) * phys_state(lchnk)%q(lcol,k,m) / prev_dyn_state(gchnk)%q(gcol,k,m)
                 else
-                  phys_state%q(index,k,m,ie) = phys_state%q(index,k,m,ie)
+                  ! prev_dyn_state exists but the tendency was <= 0
+!!XXgoldyXX: Really?
+                  phys_state(lchnk)%q(lcol,k,m) = phys_state(lchnk)%q(lcol,k,m)
                 end if
               else
-                phys_state%q(index,k,m,ie)=phys_state%q(index,k,m,ie)+tend(k)
+                ! prev_dyn_state does not exist, just use the current
+                phys_state(lchnk)%q(lcol,k,m) = curr_dyn_state(gchnk)%q(gcol,k,m)*ec_sets(set)%area(lcol)
               end if
-            end do
+            else
+!!XXgoldyXX: Really?
+              phys_state(lchnk)%q(lcol,k,m) = phys_state(lchnk)%q(lcol,k,m)+tend(k)
+            end if
           end do
         end do
       end do
+    end do
 
-    end do ! End loop over blocks
+    ! Store the current dynamics state for the next iteration
+    if (.not. allocated(prev_dyn_state)) then
+      allocate(prev_dyn_state(grid_chunk_s:grid_chunk_e))
+    end if
+    do ic = grid_chunk_s, grid_chunk_e
+      call physics_state_copy(curr_dyn_state(ic), prev_dyn_state(ic))
+    end do
+    ! Cleanup
     deallocate(tend)
 
   end subroutine dyn_state_to_elevation_classes
@@ -373,99 +217,60 @@ CONTAINS
   !
   !  elevation_classes_to_dyn_tend
   !
-  !  Average the physics tendencies in phys_state into dyn_tend
+  !  Average the physics tendencies in phys_state into tendency for dynamics
   !
   !---------------------------------------------------------------------------
-  subroutine elevation_classes_to_dyn_tend(phys_tend, dyn_tend, phys_columns)
+  subroutine elevation_classes_to_dyn_tend(phys_state, phys_tend)
+    use physics_types,  only: physics_state, physics_tend
+
     ! Dummy arguments
-    type(ec_state_t),             intent(in)    :: phys_tend
-    type(ec_state_t),             intent(inout) :: dyn_tend
-    type(phys_column_t), pointer, intent(in)    :: phys_columns(:,:)
+    type(physics_state),     intent(inout) :: phys_state(begchunk:grid_chunk_e)
+    type(physics_tend),      intent(inout) :: phys_tend(begchunk:grid_chunk_e)
 
     ! Local variables
-    integer                            :: ie, i, index, m, k, ic, nlev
-    integer                            :: pt_beg, pt_end, blk_beg, blk_end
-    real(r8), allocatable              :: tend(:)
+    integer                            :: set, ic, k, m, nlev
+    integer                            :: gchnk, lchnk, gcol, lcol
+    real(r8), allocatable              :: tend(:,:)
     real(r8)                           :: area, atemp
+    integer, parameter                 :: uind = 1 ! u tend index
+    integer, parameter                 :: vind = 2 ! v tend index
+    integer, parameter                 :: tind = 3 ! t tend index
+    integer, parameter                 :: lind = 3 ! last tend index before Q
 
-    nlev = size(dyn_tend%u, 2)
-    allocate(tend(nlev))
-    pt_beg  = LBOUND(phys_columns, 1)
-    pt_end  = UBOUND(phys_columns, 1)
-    blk_beg = LBOUND(phys_columns, 2)
-    blk_end = UBOUND(phys_columns, 2)
-    do ie = blk_beg, blk_end  ! Loop over blocks
-      ! Average U physics tendency (weighted by area?)
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        tend(:) = 0._r8
-        area = 0._r8
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          atemp = phys_columns(i,ie)%area(ic)
-          tend(:) = tend(:) + (phys_tend%u(index,:,ie) * atemp)
-          area = area + atemp
-        end do ! End loop over elevation classes
-        !$omp parallel do private(k)
-        do k = 1, nlev
-          dyn_tend%u(i,k,ie) = tend(k) / area
+    nlev = size(phys_tend(begchunk)%dudt, 2)
+    allocate(tend(nlev,1:pcnst+lind))
+
+    ! Traverse the EC sets and apply dynamics update
+    do set = 1, size(ec_sets, 1)
+      gchnk = ec_sets(set)%grid_mean_loc(1)
+      gcol = ec_sets(set)%grid_mean_loc(2)
+      tend(:,:) = 0._r8
+      area = 0._r8
+      do ic = 1, ec_sets(set)%num_elevation_classes
+        lchnk = ec_sets(set)%ec_loc(ic, 1)
+        lcol = ec_sets(set)%ec_loc(ic, 2)
+        atemp = ec_sets(set)%area(ic)
+        tend(:,uind) = tend(:,uind) + (phys_tend(lchnk)%dudt(lcol,:) * atemp)
+        tend(:,vind) = tend(:,vind) + (phys_tend(lchnk)%dvdt(lcol,:) * atemp)
+        tend(:,tind) = tend(:,tind) + (phys_tend(lchnk)%dtdt(lcol,:) * atemp)
+        do m = 1, pcnst
+          tend(:,m+lind) = tend(:,m+lind) + (phys_state(lchnk)%Q(lcol,:,m) * atemp)
+        end do
+        area = area + atemp
+      end do ! End loop over elevation classes
+      !$omp parallel do private(k,m)
+      do k = 1, nlev
+        ! Average U physics tendency (weighted by area?)
+        phys_tend(gchnk)%dudt(gcol,k) = tend(k,uind) / area
+        phys_tend(gchnk)%dvdt(gcol,k) = tend(k,vind) / area
+        phys_tend(gchnk)%dtdt(gcol,k) = tend(k,tind) / area
+        do m = 1, pcnst
+          phys_state(gchnk)%Q(gcol,k,m) = tend(k,m+lind) / area
         end do
       end do
+    end do ! End loop over sets
 
-      ! Average V physics tendency (weighted by area?)
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        tend(:) = 0._r8
-        area = 0._r8
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          atemp = phys_columns(i,ie)%area(ic)
-          tend(:) = tend(:) + (phys_tend%v(index,:,ie) * atemp)
-          area = area + atemp
-        end do ! End loop over elevation classes
-        !$omp parallel do private(k)
-        do k = 1, nlev
-          dyn_tend%v(i,k,ie) = tend(k) / area
-        end do
-      end do
-
-      ! Average T physics tendency (weighted by area?)
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        tend(:) = 0._r8
-        area = 0._r8
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          atemp = phys_columns(i,ie)%area(ic)
-          tend(:) = tend(:) + (phys_tend%t(index,:,ie) * atemp)
-          area = area + atemp
-        end do ! End loop over elevation classes
-        !$omp parallel do private(k)
-        do k = 1, nlev
-          dyn_tend%t(i,k,ie) = tend(k) / area
-        end do
-      end do
-
-      do m = 1, pcnst
-      ! Average q physics tendency (weighted by area?)
-      index = 0
-      do i = pt_beg, pt_end ! Loop over physics columns in an element
-        tend(:) = 0._r8
-        area = 0._r8
-        do ic = 1, phys_columns(i, ie)%num_elevation_classes
-          index = index + 1
-          atemp = phys_columns(i,ie)%area(ic)
-          tend(:) = tend(:) + (phys_tend%q(index,:,m,ie) * atemp)
-          area = area + atemp
-        end do ! End loop over elevation classes
-        !$omp parallel do private(k)
-        do k = 1, nlev
-          dyn_tend%q(i,k,m,ie) = tend(k) / area
-        end do
-      end do
-      end do
-
-    end do ! End loop over blocks
+    ! Cleanup
     deallocate(tend)
 
   end subroutine elevation_classes_to_dyn_tend

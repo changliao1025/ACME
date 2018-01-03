@@ -13,12 +13,9 @@ module phys_grid
 !      phys_grid_defaultopts   get default runtime options
 !      phys_grid_setopts       set runtime options
 !
-!      get_chunk_indices_p get local chunk index range
 !      get_ncols_p         get number of columns for a given chunk
 !      get_xxx_all_p       get global indices, coordinates, or values
 !                          for a given chunk
-!      get_xxx_vec_p       get global indices, coordinates, or values
-!                          for a subset of the columns in a chunk
 !      get_xxx_p           get global indices, coordinates, or values
 !                          for a single column
 !      where xxx is
@@ -73,22 +70,13 @@ module phys_grid
 !      chunk_index         identify whether index is for a latitude or
 !                          a chunk
 !
-! FOLLOWING ARE NO LONGER USED, AND ARE CURRENTLY COMMENTED OUT
-!      get_gcol_owner_p    get owner of column
-!                          for given global physics column index
-!
-!      buff_to_chunk       Copy from local buffer to local chunk data 
-!                          structure. (Needed for cpl6.)
-!
-!      chunk_to_buff       Copy from local chunk data structure to 
-!                          local buffer. (Needed for cpl6.)
-!
 ! Author: Patrick Worley and John Drake
 ! 
 !-----------------------------------------------------------------------
    use shr_kind_mod,     only: r8 => shr_kind_r8, r4 => shr_kind_r4
+   use shr_sys_mod,      only: shr_sys_flush
    use physconst,        only: pi
-   use ppgrid,           only: pcols, pver, begchunk, endchunk
+   use ppgrid,           only: pcols, psubcols, pver, pverp, begchunk, endchunk
 #if ( defined SPMD )
    use spmd_dyn,         only: block_buf_nrecs, chunk_buf_nrecs, &
                                local_dp_map
@@ -101,58 +89,98 @@ module phys_grid
    use cam_logfile,      only: iulog
 
    implicit none
+   private
    save
 
+   !!public interfaces
+   public :: get_ncols_p
+   public :: get_nlcols_p
+   public :: get_rlon_all_p
+   public :: get_rlat_all_p
+   public :: get_lat_all_p
+   public :: get_lon_all_p
+   public :: get_lon_p
+   public :: get_lat_p
+   public :: get_rlon_p
+   public :: get_rlat_p
+   public :: get_gcol_all_p
+   public :: get_gcol_p
+   public :: phys_grid_find_col
+   public :: get_area_all_p
+   public :: get_wght_all_p
+
+   public :: chunk_to_block_send_pters
+   public :: chunk_to_block_recv_pters
+   public :: transpose_chunk_to_block
+   public :: block_to_chunk_send_pters
+   public :: block_to_chunk_recv_pters
+   public :: transpose_block_to_chunk
+   public :: scatter_field_to_chunk
+   public :: gather_chunk_to_field
+
+   public :: phys_grid_init
+   public :: phys_grid_initialized
+   public :: phys_grid_defaultopts
+   public :: phys_grid_setopts
+
+   !!forwarded interfaces
+   public :: pcols
+   public :: psubcols
+   public :: begchunk
+   public :: endchunk
+   public :: pver
+   public :: pverp
+
 #if ( ! defined SPMD )
-   integer, private :: block_buf_nrecs
-   integer, private :: chunk_buf_nrecs
-   logical, private :: local_dp_map=.true. 
+   integer :: block_buf_nrecs
+   integer :: chunk_buf_nrecs
+   logical :: local_dp_map=.true. 
 #endif
 
 ! The identifier for the physics grid
    integer, parameter, public :: phys_decomp = 100
 
 ! dynamics field grid information
-   integer, private :: hdim1_d, hdim2_d
-                                       ! dimensions of rectangular horizontal grid
-                                       ! data structure, If 1D data structure, then
-                                       ! hdim2_d == 1.
+   integer :: hdim1_d, hdim2_d ! dimensions of rectangular horizontal grid
+                               ! data structure, If 1D data structure, then
+                               ! hdim2_d == 1.
 
 ! physics field data structures
-   integer         :: ngcols           ! global column count in physics grid (all)
+   integer, public :: ngcols           ! global column count in physics grid (all)
    integer, public :: ngcols_p         ! global column count in physics grid 
                                        ! (without holes)
+   integer         :: num_grid_columns = 0 ! Number of PE-local physics columns
 
-   integer, dimension(:), allocatable, private :: dyn_to_latlon_gcol_map
+   integer, dimension(:), allocatable :: dyn_to_latlon_gcol_map
                                        ! map from unsorted (dynamics) to lat/lon sorted grid indices
-   integer, dimension(:), allocatable, private :: latlon_to_dyn_gcol_map
+   integer, dimension(:), allocatable :: latlon_to_dyn_gcol_map
                                        ! map from lat/lon sorted grid to unsorted (dynamics) indices
-   integer, dimension(:), allocatable, private :: lonlat_to_dyn_gcol_map
+   integer, dimension(:), allocatable :: lonlat_to_dyn_gcol_map
                                        ! map from lon/lat sorted grid to unsorted (dynamics) indices
 
-!   integer, private :: clat_p_tot ! number of unique latitudes
-!   integer, private :: clon_p_tot ! number of unique longitudes
 ! these are public to support mozart chemistry in the short term
-   integer, private :: clat_p_tot ! number of unique latitudes
-   integer, private :: clon_p_tot ! number of unique longitudes
+   integer :: clat_p_tot ! number of unique latitudes
+   integer :: clon_p_tot ! number of unique longitudes
 
-   integer, dimension(:), allocatable, private :: clat_p_cnt ! number of repeats for each latitude
-   integer, dimension(:), allocatable, private :: clat_p_idx ! index in latlon ordering for first occurence
-                                                             ! of latitude corresponding to given 
-                                                             ! latitude index
-   real(r8), dimension(:), allocatable :: clat_p  ! unique latitudes (radians, increasing)
+   integer, dimension(:), allocatable :: clat_p_cnt ! number of repeats for each latitude
+   integer, dimension(:), allocatable :: clat_p_idx ! index in latlon ordering for first occurence
+                                                    ! of latitude corresponding to given 
+                                                    ! latitude index
+   real(r8), public, dimension(:), allocatable :: clat_p  ! unique latitudes (radians, increasing)
 
 
-   integer, dimension(:), allocatable, private :: clon_p_cnt ! number of repeats for each longitude
-   integer, dimension(:), allocatable, private :: clon_p_idx ! index in lonlat ordering for first 
+   integer, dimension(:), allocatable :: clon_p_cnt ! number of repeats for each longitude
+   integer, dimension(:), allocatable :: clon_p_idx ! index in lonlat ordering for first 
                                                              ! occurrence of longitude corresponding to 
                                                              ! given latitude index
-   real(r8), dimension(:), allocatable :: clon_p  ! unique longitudes (radians, increasing)
+   real(r8), public, dimension(:), allocatable :: clon_p  ! unique longitudes (radians, increasing)
 
-   integer, dimension(:), allocatable, private :: lat_p      ! index into list of unique column latitudes
-   integer, dimension(:), allocatable, private :: lon_p      ! index into list of unique column longitudes
+   integer, dimension(:), allocatable :: lat_p      ! index into list of unique column latitudes
+   integer, dimension(:), allocatable :: lon_p      ! index into list of unique column longitudes
 
-! chunk data structures
+!!XXgoldyXX: v not needed?
+#if 0
+! chunk data structures (private!)
    type chunk
      integer  :: ncols                 ! number of vertical columns
      integer  :: gcol(pcols)           ! global physics column indices
@@ -163,23 +191,29 @@ module phys_grid
    end type chunk
 
    integer :: nchunks                  ! global chunk count
-   type (chunk), dimension(:), allocatable, private :: chunks
+   type (chunk), dimension(:), allocatable :: chunks
                                        ! global computational grid
+#endif
+!!XXgoldyXX: ^ not needed?
 
-   integer, dimension(:), allocatable, private :: npchunks 
+   integer, dimension(:), allocatable :: npchunks 
                                        ! number of chunks assigned to each process
 
    type lchunk
-     integer  :: ncols                 ! number of vertical columns
-     integer  :: cid                   ! global chunk index
-     integer  :: gcol(pcols)           ! global physics column indices
-     real(r8) :: area(pcols)           ! column surface area (from dynamics)
-     real(r8) :: wght(pcols)           ! column integration weight (from dynamics)
+     integer  :: ncols           ! number of vertical columns
+     integer  :: gcol(pcols)     ! File position of chunk columns
+     integer  :: lon_rank(pcols) ! global longitude rank
+     integer  :: lat_rank(pcols) ! global latitude rank
+     real(r8) :: lon(pcols)      ! PE longitude (degrees)
+     real(r8) :: lat(pcols)      ! PE latitude (degrees)
+     real(r8) :: rlon(pcols)     ! PE longitude (radians)
+     real(r8) :: rlat(pcols)     ! PE latitude (radians)
+     real(r8) :: area(pcols)     ! column surface area (from dynamics)
+     real(r8) :: wght(pcols)     ! column integration weight (from dynamics)
    end type lchunk
 
-   integer, private :: nlchunks        ! local chunk count
-   type (lchunk), dimension(:), allocatable, private :: lchunks  
-                                       ! local chunks
+   integer :: nlchunks        ! local chunk count
+   type (lchunk), dimension(:), allocatable :: lchunks ! local chunks
 
    type knuhc
      integer  :: chunkid               ! chunk id
@@ -194,27 +228,32 @@ module phys_grid
    type column_map
      integer  :: chunk                 ! global chunk index
      integer  :: ccol                  ! column ordering in chunk
+     integer  :: gcol                  ! global column index
    end type column_map
 
+!!XXgoldyXX: v not needed?
+#if 0
    integer, private :: nlcols           ! local column count
-   type (column_map), dimension(:), allocatable, private :: pgcols
+   type (column_map), dimension(:), allocatable :: pgcols
                                        ! ordered list of columns (for use in gather/scatter)
                                        ! NOTE: consistent with local ordering
+#endif
+!!XXgoldyXX: ^ not needed?
 
 ! column remap data structures
-   integer, dimension(:), allocatable, private :: gs_col_num
+   integer, dimension(:), allocatable :: gs_col_num
                                        ! number of columns scattered to each process in
                                        ! field_to_chunk scatter
-   integer, dimension(:), allocatable, private :: gs_col_offset
+   integer, dimension(:), allocatable :: gs_col_offset
                                        ! offset of columns (-1) in pgcols scattered to
                                        ! each process in field_to_chunk scatter
 
-   integer, dimension(:), allocatable, private :: btofc_blk_num
+   integer, dimension(:), allocatable :: btofc_blk_num
                                        ! number of grid points scattered to each process in
                                        ! block_to_chunk alltoallv, and gathered from each
                                        ! process in chunk_to_block alltoallv
 
-   integer, dimension(:), allocatable, private :: btofc_chk_num
+   integer, dimension(:), allocatable :: btofc_chk_num
                                        ! number of grid points gathered from each process in
                                        ! block_to_chunk alltoallv, and scattered to each
                                        ! process in chunk_to_block alltoallv
@@ -222,9 +261,10 @@ module phys_grid
    type btofc_pters
      integer :: ncols                  ! number of columns in block
      integer :: nlvls                  ! number of levels in columns
-     integer, dimension(:,:), pointer :: pter 
+     integer, dimension(:,:), pointer :: pter => NULL()
    end type btofc_pters
-   type (btofc_pters), dimension(:), allocatable, private :: btofc_blk_offset
+
+   type (btofc_pters), dimension(:), allocatable :: btofc_blk_offset
                                        ! offset in btoc send array (-1) where 
                                        ! (blockid, bcid, k) column should be packed in
                                        ! block_to_chunk alltoallv, AND
@@ -232,7 +272,7 @@ module phys_grid
                                        ! (blockid, bcid, k) column should be unpacked in
                                        ! chunk_to_block alltoallv
 
-   type (btofc_pters), dimension(:), allocatable, private :: btofc_chk_offset
+   type (btofc_pters), dimension(:), allocatable :: btofc_chk_offset
                                        ! offset in btoc receive array (-1) from which
                                        ! (lcid, i, k) data should be unpacked in
                                        ! block_to_chunk alltoallv, AND
@@ -241,16 +281,21 @@ module phys_grid
                                        ! chunk_to_block alltoallv
 
 ! miscellaneous phys_grid data
-   integer, private :: dp_coup_steps   ! number of swaps in transpose algorithm
-   integer, dimension(:), private, allocatable :: dp_coup_proc
+   integer          :: dp_coup_steps   ! number of swaps in transpose algorithm
+   integer, dimension(:), allocatable :: dp_coup_proc
                                        ! swap partner in each step of 
                                        !  transpose algorithm
-   logical :: physgrid_set = .false.   ! flag indicates physics grid has been set
-   integer, private :: max_nproc_smpx  ! maximum number of processes assigned to a
+   logical :: physgrid_set = .false. ! flag indicates physics grid has been set
+   integer :: max_nproc_smpx  ! maximum number of processes assigned to a
                                        !  single virtual SMP used to define physics 
                                        !  load balancing
-   integer, private :: nproc_busy_d    ! number of processes active during the dynamics
+   integer :: nproc_busy_d    ! number of processes active during the dynamics
                                        !  (assigned a dynamics block)
+
+   ! If there are separate grid-scale chunks, the chunk numbers will be
+   ! larger than endchunk (i.e., endchunk < grid_chunk_s <= grid_chunk_e).
+   integer, public, protected :: grid_chunk_s = -1 ! Start grid-scale chunk
+   integer, public, protected :: grid_chunk_e = -1 ! End grid-scale chunk
 
 ! Physics grid decomposition options:  
 ! -1: each chunk is a dynamics block
@@ -259,26 +304,25 @@ module phys_grid
 !  2: chunk definitions and assignments may require communication between all processes
 !  3: chunk definitions and assignments only require communication with one other process
 !  4: concatenated blocks, no load balancing, no interprocess communication
-   integer, private, parameter :: min_lbal_opt = -1
-   integer, private, parameter :: max_lbal_opt = 5
-   integer, private, parameter :: def_lbal_opt = 2               ! default
-   integer, private :: lbal_opt = def_lbal_opt
+   integer, parameter :: min_lbal_opt = -1
+   integer, parameter :: max_lbal_opt = 5
+   integer, parameter :: def_lbal_opt = 2               ! default
+   integer :: lbal_opt = def_lbal_opt
 
 ! Physics grid load balancing options:  
 !  0: assign columns to chunks as single columns, wrap mapped across chunks
 !  1: use (day/night; north/south) twin algorithm to determine load-balanced pairs of 
 !       columns and assign columns to chunks in pairs, wrap mapped
-   integer, private, parameter :: min_twin_alg = 0
-   integer, private, parameter :: max_twin_alg = 1
-   integer, private, parameter :: def_twin_alg_lonlat = 1         ! default
-   integer, private, parameter :: def_twin_alg_unstructured = 0
-   integer, private :: twin_alg = def_twin_alg_lonlat
+   integer, parameter :: min_twin_alg = 0
+   integer, parameter :: max_twin_alg = 1
+   integer, parameter :: def_twin_alg_lonlat = 1         ! default
+   integer, parameter :: def_twin_alg_unstructured = 0
+   integer :: twin_alg = def_twin_alg_lonlat
 
 ! target number of chunks per thread
-   integer, private, parameter :: min_chunks_per_thread = 1
-   integer, private, parameter :: def_chunks_per_thread = &
-                                    min_chunks_per_thread         ! default
-   integer, private :: chunks_per_thread = def_chunks_per_thread
+   integer, parameter :: min_chunks_per_thread = 1
+   integer, parameter :: def_chunks_per_thread = min_chunks_per_thread ! default
+   integer :: chunks_per_thread = def_chunks_per_thread
 
 ! Dynamics/physics transpose method for nonlocal load-balance:
 ! -1: use "0" if max_nproc_smpx and nproc_busy_d are both > npes/2; otherwise use "1"
@@ -292,27 +336,20 @@ module phys_grid
 !      The method within mod_comm (denoted mod_method) has possible values 0,1,2 and
 !      is set according to mod_method = phys_alltoall - modmin_alltoall, where
 !      modmin_alltoall is 11.
-   integer, private, parameter :: min_alltoall = -1
-   integer, private, parameter :: max_alltoall = 3
+   integer, parameter :: min_alltoall = -1
+   integer, parameter :: max_alltoall = 3
 # if defined(MODCM_DP_TRANSPOSE)
-   integer, private, parameter :: modmin_alltoall = 11
-   integer, private, parameter :: modmax_alltoall = 13
+   integer, parameter :: modmin_alltoall = 11
+   integer, parameter :: modmax_alltoall = 13
 # endif
-   integer, private, parameter :: def_alltoall = 1                ! default
-   integer, private :: phys_alltoall = def_alltoall
+   integer, parameter :: def_alltoall = 1                ! default
+   integer :: phys_alltoall = def_alltoall
 
 contains
 !========================================================================
   integer function get_nlcols_p()
-    get_nlcols_p = nlcols
+    get_nlcols_p = num_grid_columns
   end function get_nlcols_p
-
-  integer function get_clon_p_tot()
-    get_clon_p_tot = clon_p_tot
-  end function get_clon_p_tot
-  integer function get_clat_p_tot()
-    get_clat_p_tot = clat_p_tot
-  end function get_clat_p_tot
 
   subroutine phys_grid_init( )
     !----------------------------------------------------------------------- 
@@ -324,19 +361,20 @@ contains
     ! Author: John Drake and Patrick Worley
     ! 
     !-----------------------------------------------------------------------
-    use pmgrid, only: plev
-    use dycore, only: dycore_is
-    use dyn_grid, only: get_block_bounds_d, dyn_decomp, get_dyn_grid_parm, &
-         get_block_gcol_d, get_block_gcol_cnt_d, &
-         get_block_levels_d, get_block_lvl_cnt_d, &
-         get_block_owner_d, &
-         get_gcol_block_d, get_gcol_block_cnt_d, &
-         get_horiz_grid_dim_d, get_horiz_grid_d, physgrid_copy_attributes_d
-    use spmd_utils, only: pair, ceil2
-    use cam_grid_support, only: cam_grid_register, iMap, max_hcoordname_len
-    use cam_grid_support, only: horiz_coord_t, horiz_coord_create
-    use cam_grid_support, only: cam_grid_attribute_copy
-    use elev_classes,     only: ec_active, elevation_classes_init
+     use pio,              only: PIO_OFFSET_KIND
+     use pmgrid,           only: plev
+     use dycore,           only: dycore_is
+     use dyn_grid,         only: get_block_bounds_d, dyn_decomp,     &
+          get_dyn_grid_parm, get_block_gcol_d, get_block_gcol_cnt_d, &
+          get_block_levels_d, get_block_lvl_cnt_d,                   &
+          get_block_owner_d,                                         &
+          get_gcol_block_d, get_gcol_block_cnt_d,                    &
+          get_horiz_grid_dim_d, get_horiz_grid_d, physgrid_copy_attributes_d
+     use spmd_utils,       only: pair, ceil2, MPI_INTEGER, mpicom
+     use cam_grid_support, only: cam_grid_register, iMap, max_hcoordname_len
+     use cam_grid_support, only: horiz_coord_t, horiz_coord_create
+     use cam_grid_support, only: cam_grid_attribute_copy
+     use elev_classes,     only: ec_active, elevation_classes_init
 
     !
     !------------------------------Arguments--------------------------------
@@ -346,6 +384,7 @@ contains
     !
     integer :: i, j, jb, k, p             ! loop indices
     integer :: pre_i                      ! earlier index in loop iteration
+    integer :: ierr                       ! For MPI errors
     integer :: clat_p_dex, clon_p_dex     ! indices into unique lat. and lon. arrays
     integer :: maxblksiz                  ! maximum number of columns in a dynamics block
     integer :: beg_dex, end_dex           ! index range
@@ -369,45 +408,65 @@ contains
 
 
     ! column surface area (from dynamics)
-    real(r8), dimension(:), allocatable :: area_d
+    real(r8), allocatable :: area_d(:)
 
     ! column integration weight (from dynamics)
-    real(r8), dimension(:), allocatable :: wght_d
+    real(r8), allocatable :: wght_d(:)
 
     ! chunk global ordering
-    integer, dimension(:), allocatable :: pchunkid
+    integer, allocatable :: pchunkid(:)
 
-    ! permutation array used in physics column sorting;
-    ! reused later as work space in (lbal_opt == -1) logic
-    integer, dimension(:), allocatable :: cdex
+    ! Block position info for each local column
+    type(column_map), allocatable :: col_block_pos(:)
+
+    ! permutation arrays used in physics column sorting;
+    integer, allocatable :: cdex(:)
+    integer, allocatable :: lat_global_rank(:)
+    integer, allocatable :: lat_rank(:)
+    integer, allocatable :: lon_global_rank(:)
+    integer, allocatable :: lon_rank(:)
+    ! Logical used for packing arrays
+    logical, allocatable :: sel_elem(:)
 
     ! latitudes and longitudes and column area for dynamics columns
-    real(r8), dimension(:), allocatable :: clat_d
-    real(r8), dimension(:), allocatable :: clon_d
-    real(r8), dimension(:), allocatable :: lat_d
-    real(r8), dimension(:), allocatable :: lon_d
-    real(r8) :: clat_p_tmp
-    real(r8) :: clon_p_tmp
+    ! The global version could go away when a fully parallel interface exists
+    real(r8), allocatable :: clat_global_d(:)
+    real(r8), allocatable :: clon_global_d(:)
+    real(r8), allocatable :: lat_global_d(:)
+    real(r8), allocatable :: lon_global_d(:)
+    real(r8), allocatable :: clat_d(:)
+    real(r8), allocatable :: clon_d(:)
+    real(r8), allocatable :: lat_d(:)
+    real(r8), allocatable :: lon_d(:)
+    real(r8)              :: clat_p_tmp
+    real(r8)              :: clon_p_tmp
+
+    character(len=*), parameter :: subname = 'PHYS_GRID_INIT'
 
     ! Maps and values for physics grid
-    real(r8),       pointer             :: lonvals(:)
-    real(r8),       pointer             :: latvals(:)
-    real(r8),               allocatable :: latdeg_p(:)
-    real(r8),               allocatable :: londeg_p(:)
-    integer(iMap),  pointer             :: grid_map(:,:)
-    integer(iMap),  pointer             :: coord_map(:)
-    type(horiz_coord_t), pointer        :: lat_coord
-    type(horiz_coord_t), pointer        :: lon_coord
-    integer                             :: gcols(pcols)
-    character(len=max_hcoordname_len), pointer :: copy_attributes(:)
-    character(len=max_hcoordname_len)   :: copy_gridname
-    logical                             :: unstructured
-    real(r8)                            :: lonmin, latmin
+    real(r8),                          pointer     :: lonvals(:)
+    real(r8),                          pointer     :: latvals(:)
+!!XXgoldyXX: v not needed?
+#if 0
+    real(r8),                          allocatable :: latdeg_p(:)
+    real(r8),                          allocatable :: londeg_p(:)
+#endif
+!!XXgoldyXX: ^ not needed?
+    integer(iMap),                     pointer     :: grid_map(:,:)
+    integer(iMap),                     pointer     :: coord_map(:)
+    type(horiz_coord_t),               pointer     :: lat_coord
+    type(horiz_coord_t),               pointer     :: lon_coord
+    integer                                        :: gcols(pcols)
+    character(len=max_hcoordname_len), pointer     :: copy_attributes(:)
+    character(len=max_hcoordname_len)              :: copy_gridname
+    logical                                        :: unstructured
+    real(r8)                                       :: lonmin, latmin
 
     ! Data for elevation classes
-    integer,                allocatable :: num_subgrids(:,:)
-    real(r8),               allocatable :: subgrid_area(:,:,:)
-    real(r8),               allocatable :: subgrid_elev(:,:,:)
+    integer(PIO_OFFSET_KIND),          allocatable :: ldof(:)
+    integer,                           allocatable :: num_subgrids(:)
+    real(r8),                          allocatable :: subgrid_area(:,:)
+    real(r8),                          allocatable :: subgrid_elev(:,:)
 
     nullify(lonvals)
     nullify(latvals)
@@ -426,26 +485,162 @@ contains
 
     call get_horiz_grid_dim_d(hdim1_d,hdim2_d)
     ngcols = hdim1_d*hdim2_d
-    allocate( clat_d(1:ngcols) )
-    allocate( clon_d(1:ngcols) )
-    allocate( lat_d(1:ngcols) )
-    allocate( lon_d(1:ngcols) )
-    allocate( cdex(1:ngcols) )
-    clat_d = 100000.0_r8
-    clon_d = 100000.0_r8
-    call get_horiz_grid_d(ngcols, clat_d_out=clat_d, clon_d_out=clon_d, lat_d_out=lat_d, lon_d_out=lon_d)
-    latmin = MINVAL(ABS(lat_d))
-    lonmin = MINVAL(ABS(lon_d))
+    allocate( clat_global_d(1:ngcols) )
+    allocate( clon_global_d(1:ngcols) )
+    allocate( lat_global_d(1:ngcols) )
+    allocate( lon_global_d(1:ngcols) )
+    allocate( sel_elem(1:ngcols) )
+
+    clat_global_d = 100000.0_r8
+    clon_global_d = 100000.0_r8
+    call get_horiz_grid_d(ngcols, clat_d_out=clat_global_d, clon_d_out=clon_global_d, lat_d_out=lat_global_d, lon_d_out=lon_global_d)
+    latmin = MINVAL(ABS(lat_global_d))
+    lonmin = MINVAL(ABS(lon_global_d))
 !!XXgoldyXX: To do: replace collection above with local physics points
 
     ! count number of "real" column indices
     ngcols_p = 0
     do i=1,ngcols
-       if (clon_d(i) < 100000.0_r8) then
+       if (clon_global_d(i) < 100000.0_r8) then
           ngcols_p = ngcols_p + 1
-       endif
-    enddo
+       end if
+    end do
 
+    ! sort over longitude and identify unique longitude coordinates
+    allocate(cdex(1:ngcols))
+    allocate(lon_global_rank(1:ngcols))
+    call IndexSet(ngcols, cdex)
+    call IndexSort(ngcols, cdex, clon_global_d, descend=.false.)
+    clon_p_tot = 0
+    clon_p_tmp = -HUGE(0.0_r8)
+    lon_global_rank = -1
+    do i = 1, ngcols_p
+       if (clon_global_d(cdex(i)) > clon_p_tmp) then
+          clon_p_tot = clon_p_tot + 1
+          clon_p_tmp = clon_global_d(cdex(i))
+       end if
+       lon_global_rank(cdex(i)) = clon_p_tot
+    end do
+    if (ANY(lon_global_rank < 0)) then
+       call endrun(subname//': lon_global_rank not filled out')
+    end if
+    ! sort over latitude and identify unique latitude coordinates
+    allocate(lat_global_rank(1:ngcols))
+    call IndexSet(ngcols, cdex)
+    call IndexSort(ngcols, cdex, clat_global_d, descend=.false.)
+    clat_p_tot = 0
+    clat_p_tmp = -HUGE(0.0_r8)
+    lat_global_rank = -1
+    do i = 1, ngcols_p
+       if (clat_global_d(cdex(i)) > clat_p_tmp) then
+          clat_p_tot = clat_p_tot + 1
+          clat_p_tmp = clat_global_d(cdex(i))
+       end if
+       lat_global_rank(cdex(i)) = clat_p_tot
+    end do
+    if (ANY(lat_global_rank < 0)) then
+       call endrun(subname//': lat_global_rank not filled out')
+    end if
+    deallocate(cdex)
+!!XXgoldyXX: v debug only
+if (masterproc) then
+   write(iulog, *) 'XXG: ', epsilon(0.0_r8), tiny(0.0_r8), huge(0.0_r8), -huge(0.0_r8)
+   write(iulog, *) 'XXG: lgr = ', MINVAL(lon_global_rank), MINVAL(lat_global_rank)
+   call shr_sys_flush(iulog)
+end if
+call mpi_barrier(mpicom, ierr)
+call shr_sys_flush(iulog)
+!!XXgoldyXX: ^ debug only
+
+    ! Gather up the columns this PE will use to figure out chunking
+    if ((lbal_opt < 2) .or. (lbal_opt > 3)) then
+       ! No communication, just collect local dynamics columns
+       local_dp_map = .true.
+       do i = 1, ngcols
+          call get_gcol_block_d(i, 1, blockids, bcids)
+          p = get_block_owner_d(blockids(1))
+          sel_elem(i) = (p == iam)
+       end do
+       num_grid_columns = COUNT(sel_elem)
+       allocate( clat_d(1:num_grid_columns) )
+       clat_d = PACK(clat_global_d, sel_elem)
+       allocate( clon_d(1:num_grid_columns) )
+       clon_d = PACK(clon_global_d, sel_elem)
+       allocate( lat_d(1:num_grid_columns) )
+       lat_d = PACK(lat_global_d, sel_elem)
+       allocate( lon_d(1:num_grid_columns) )
+       lon_d = PACK(lon_global_d, sel_elem)
+       allocate( lon_rank(1:num_grid_columns) )
+       lon_rank = PACK(lon_global_rank, sel_elem)
+       allocate( lat_rank(1:num_grid_columns) )
+       lat_rank = PACK(lat_global_rank, sel_elem)
+       allocate( col_block_pos(1:num_grid_columns) )
+       allocate( cdex(1:num_grid_columns) )
+       ! We have to go through the columns one more time to find col loc
+       jb = 0
+       do i = 1, ngcols
+          if (sel_elem(i)) then
+             call get_gcol_block_d(i, 1, blockids, bcids)
+             jb = jb + 1
+             if (jb > num_grid_columns) then
+                call endrun(subname//": local block column count error")
+             end if
+             col_block_pos(jb)%chunk = blockids(1)
+             col_block_pos(jb)%ccol = bcids(1)
+             col_block_pos(jb)%gcol = i
+          end if
+       end do
+       if (jb < num_grid_columns) then
+          call endrun(subname//": local block leftover columns")
+       end if
+    else
+       ! Communication is allowed, assign geographic area to each PE
+       sel_elem = .false.
+       local_dp_map = .false.
+       num_grid_columns = 0
+    end if
+
+    ! Cleanup global arrays
+    deallocate(clat_global_d)
+    deallocate(clon_global_d)
+    deallocate(lat_global_d)
+    deallocate(lon_global_d)
+    deallocate(lon_global_rank)
+    deallocate(lat_global_rank)
+
+    if (ec_active) then
+       ! Get ldof and elevation classes
+       allocate(ldof(num_grid_columns))
+       jb = 0
+       ldof = -1
+       do i = 1, ngcols
+          if (sel_elem(i)) then
+             jb = jb + 1
+             ldof(jb) = i
+          else if (jb > 0) then
+             ldof(jb) = 0
+          end if
+       end do
+       if (ANY(ldof < 0)) then
+          call endrun(subname//': EC ldof not filled out')
+       end if
+       call elevation_classes_init(ldof, num_subgrids, subgrid_area, subgrid_elev)
+       ! We can't support all the load balancing options with elevation classes
+       if ((lbal_opt == -1) .or. (lbal_opt == 4)) then
+          if (masterproc) then
+             write(iulog, '(3a,i0,a)') subname, ' WARNING: ',            &
+                  'phys_loadbalance ',lbal_opt,' not supported with elevation'
+             write(iulog, '(24(" "),a)') 'classes, using phys_loadbalance = 0'
+          end if
+          lbal_opt = 0
+       end if
+    else
+       allocate(num_subgrids(num_grid_columns))
+       num_subgrids = 1
+    end if
+
+!!XXgoldyXX: v not needed?
+#if 0
     ! sort over longitude and identify unique longitude coordinates
     call IndexSet(ngcols,cdex)
     call IndexSort(ngcols,cdex,clon_d,descend=.false.)
@@ -588,26 +783,16 @@ contains
     deallocate( clat_d )
     deallocate( clon_d )
     deallocate( cdex )
+#endif
+!!XXgoldyXX: ^ not needed?
 
     !
-    ! Determine block index bounds
+    ! Determine (global) block index bounds
     !
-    call get_block_bounds_d(firstblock,lastblock)
+    call get_block_bounds_d(firstblock, lastblock)
 
-    ! We might need copy_gridname now (but it is always used to set up physgrid)
-    nullify(copy_attributes)
-    call physgrid_copy_attributes_d(copy_gridname, copy_attributes)
-    ! Initialize elevation classes
-    !--------------------------------
-    if (ec_active) then
-      ! The get_dyn_grid_parm calls are a bit of a hack but there is no better
-      ! way to recover that information
-      call elevation_classes_init(trim(copy_gridname), &
-           (get_dyn_grid_parm('endlonxy') - get_dyn_grid_parm('beglonxy')), &
-           (lastblock - firstblock + 1), &
-           num_subgrids, subgrid_area, subgrid_elev)
-    end if
-
+!!XXgoldyXX: v not needed?
+#if 0
     ! Allocate storage to save number of chunks and columns assigned to each
     ! process during chunk creation and assignment
     !
@@ -615,6 +800,8 @@ contains
     allocate( gs_col_num(0:npes-1) )
     npchunks(:) = 0
     gs_col_num(:) = 0
+#endif
+!!XXgoldyXX: ^ not needed?
 
     !
     ! Option -1: each dynamics block is a single chunk
@@ -624,24 +811,77 @@ contains
        ! Check that pcols >= maxblksiz
        !
        maxblksiz = 0
-       do jb=firstblock,lastblock
-          maxblksiz = max(maxblksiz,get_block_gcol_cnt_d(jb))
-       enddo
+       do jb = firstblock, lastblock
+          maxblksiz = max(maxblksiz, get_block_gcol_cnt_d(jb))
+       end do
        if (pcols < maxblksiz) then
-	  write(iulog,*) 'pcols = ',pcols, ' maxblksiz=',maxblksiz
-          call endrun ('PHYS_GRID_INIT error: phys_loadbalance -1 specified but PCOLS < MAXBLKSIZ')
+          write(iulog,*) 'pcols = ',pcols, ' maxblksiz=',maxblksiz
+          call endrun (subname//' error: phys_loadbalance -1 specified but PCOLS < MAXBLKSIZ')
        endif
 
        !
-       ! Determine total number of chunks
+       ! Determine total number of chunks on this PE - count unique blocks
        !
-       nchunks = (lastblock-firstblock+1)
+       cdex = -1
+       nlchunks = 0
+       do i = 1, num_grid_columns
+          jb = col_block_pos(i)%chunk
+          if (.not. ANY(cdex == jb)) then
+             nlchunks = nlchunks + 1
+             cdex(nlchunks) = jb
+          end if
+       end do
 
+       !
+       ! Compute begchunk and endchunk
+       allocate( npchunks(0:npes-1) )
+       npchunks(:) = 0
+       npchunks(iam) = nlchunks
+       call MPI_allgather(nlchunks, 1, MPI_INTEGER, npchunks,          &
+            1, MPI_INTEGER, mpicom, ierr)
+       begchunk = lastblock + 1
+       do i = 1, iam
+          begchunk = begchunk + npchunks(i - 1)
+       end do
+       deallocate(npchunks)
+       endchunk = begchunk + nlchunks - 1
+       ! These will be different for e.g., elevation classes
+       grid_chunk_s = begchunk
+       grid_chunk_e = endchunk
+       allocate(lchunks(begchunk:endchunk))
+       do i = begchunk, endchunk
+          lchunks(i)%ncols = 0
+       end do
+       do i = 1, num_grid_columns
+          jb = col_block_pos(i)%chunk ! Block num of this column
+          lcid = -1
+          do j = 1, num_grid_columns
+             ! Find chunk number
+             if (cdex(j) == jb) then
+                lcid = begchunk + j - 1
+                exit
+             end if
+          end do
+          if (lcid < 0) then
+             call endrun(subname//": Could not find chunk number")
+          end if
+          lchunks(lcid)%ncols = lchunks(lcid)%ncols + 1
+          cid = lchunks(lcid)%ncols
+          lchunks(lcid)%gcol(cid) = col_block_pos(i)%gcol
+          lchunks(lcid)%lat_rank(cid) = lat_rank(i)
+          lchunks(lcid)%lon_rank(cid) = lon_rank(i)
+          lchunks(lcid)%lat(cid) = lat_d(i)
+          lchunks(lcid)%lon(cid) = lon_d(i)
+          lchunks(lcid)%rlat(cid) = clat_d(i)
+          lchunks(lcid)%rlon(cid) = clon_d(i)
+       end do
        !
        ! Set max virtual SMP node size
        !
        max_nproc_smpx = 1
 
+!!XXgoldyXX: v not needed?
+#if 0
        !
        ! Allocate and initialize chunks data structure
        !
@@ -688,12 +928,17 @@ contains
           npchunks(p)       = npchunks(p) + 1
           gs_col_num(p)     = gs_col_num(p) + chunks(cid)%ncols
        enddo
+#endif
+!!XXgoldyXX: ^ not needed?
        !
        ! Set flag indicating columns in physics and dynamics 
        ! decompositions reside on the same processes
        !
        local_dp_map = .true. 
        !
+!!XXgoldyXX: v not needed?
+     end if
+#if 0
     else
        !
        ! Option == 0: split local blocks into chunks,
@@ -829,6 +1074,8 @@ contains
 
     deallocate( pchunkid )
     deallocate( npchunks )
+#endif
+!!XXgoldyXX: ^ not needed?
     !
     !-----------------------------------------------------------------------
     !
@@ -855,16 +1102,18 @@ contains
        call endrun('phys_grid')
     end if
 
-    do lcid=begchunk,endchunk
-       do i=1,lchunks(lcid)%ncols
+    do lcid = begchunk, endchunk
+       do i = 1, lchunks(lcid)%ncols
           lchunks(lcid)%area(i) = area_d(lchunks(lcid)%gcol(i))
           lchunks(lcid)%wght(i) = wght_d(lchunks(lcid)%gcol(i))
-       enddo
-    enddo
+       end do
+    end do
 
     deallocate( area_d )
     deallocate( wght_d )
 
+!!XXgoldyXX: v not needed?
+#if 0
     if (.not. local_dp_map) then
        !
        ! allocate and initialize data structures for transposes
@@ -987,6 +1236,8 @@ contains
     deallocate( gs_col_offset )
     ! (if eliminate get_lon_xxx, can also deallocate
     !  clat_p_idx, and grid_latlon?))
+#endif
+!!XXgoldyXX: ^ not needed?
 
     ! Add physics-package grid to set of CAM grids
     ! physgrid always uses 'lat' and 'lon' as coordinate names; If dynamics
@@ -1009,10 +1260,9 @@ contains
       ncols = lchunks(lcid)%ncols
       call get_gcol_all_p(lcid, pcols, gcols)
       ! collect latvals and lonvals
-      cid = lchunks(lcid)%cid
-      do i = 1, chunks(cid)%ncols
-        latvals(p + i) = latdeg_p(chunks(cid)%lat(i))
-        lonvals(p + i) = londeg_p(chunks(cid)%lon(i))
+      do i = 1, ncols
+        latvals(p + i) = lchunks(lcid)%lat(i)
+        lonvals(p + i) = lchunks(lcid)%lon(i)
       end do
       if (pcols > ncols) then
         ! Need to set these to detect unused columns
@@ -1034,7 +1284,7 @@ contains
           end if
         else
           if (i <= ncols) then
-            call endrun("phys_grid_init: unmapped column")
+            call endrun(subname//": unmapped column")
           end if
         end if
       end do
@@ -1075,7 +1325,8 @@ contains
     call cam_grid_register('physgrid', phys_decomp, lat_coord, lon_coord,     &
          grid_map, unstruct=unstructured, block_indexed=.true.)
     ! Copy required attributes from the dynamics array
-    ! Note, copy_attributes obtained above
+    nullify(copy_attributes)
+    call physgrid_copy_attributes_d(copy_gridname, copy_attributes)
     do i = 1, size(copy_attributes)
       call cam_grid_attribute_copy(copy_gridname, 'physgrid', copy_attributes(i))
     end do
@@ -1095,12 +1346,12 @@ contains
     physgrid_set = .true.   ! Set flag indicating physics grid is now set
     !
     if (masterproc) then
-       write(iulog,*) 'PHYS_GRID_INIT:  Using PCOLS=',pcols,     &
-            '  phys_loadbalance=',lbal_opt,            &
-            '  phys_twin_algorithm=',twin_alg,         &
-            '  phys_alltoall=',phys_alltoall,          &
-            '  chunks_per_thread=',chunks_per_thread
-    endif
+       write(iulog, '(a,5(a,i0))') subname,':  Using PCOLS = ', pcols,    &
+            '  phys_loadbalance = ', lbal_opt,            &
+            '  phys_twin_algorithm = ', twin_alg,         &
+            '  phys_alltoall = ', phys_alltoall,          &
+            '  chunks_per_thread = ', chunks_per_thread
+    end if
     !
 
     call t_stopf("phys_grid_init")
@@ -1111,6 +1362,7 @@ contains
 !========================================================================
 
 subroutine phys_grid_find_col(lat, lon, owner, lcid, icol)
+   use spmd_utils, only: mpicom, iam, MPI_REAL8, MPI_INTEGER, MPI_MIN, MPI_MAX
 
    !----------------------------------------------------------------------- 
    ! 
@@ -1122,20 +1374,22 @@ subroutine phys_grid_find_col(lat, lon, owner, lcid, icol)
    ! 
    !-----------------------------------------------------------------------
 
-   real(r8), intent(in) :: lat, lon    ! requested location in degrees
-   integer, intent(out) :: owner       ! rank of chunk owner
-   integer, intent(out) :: lcid      ! local chunk index
-   integer, intent(out) :: icol        ! column index within the chunk
+   real(r8), intent(in) :: lat, lon ! requested location in degrees
+   integer, intent(out) :: owner    ! rank of chunk owner
+   integer, intent(out) :: lcid     ! local chunk index
+   integer, intent(out) :: icol     ! column index within the chunk
 
    ! local
-   real(r8) dist2           ! the distance (in radians**2 from lat, lon)
-   real(r8) distmin         ! the distance (in radians**2 from closest column)
-   real(r8) latr, lonr      ! lat, lon (in radians) of requested location
-   real(r8) clat, clon      ! lat, lon (in radians) of column being tested
-   real(r8) const
+   real(r8) :: dist2        ! the distance (in radians**2 from lat, lon)
+   real(r8) :: distmin      ! local distance (in radians**2 from closest column)
+   real(r8) :: gdistmin     ! global version of distmin
+   real(r8) :: latr, lonr   ! lat, lon (in radians) of requested location
+   real(r8) :: clat, clon   ! lat, lon (in radians) of column being tested
+   real(r8), parameter :: deg2rad = pi / 180.0_r8
 
-   integer i
-   integer cid
+   integer :: i
+   integer :: cid
+   integer :: ierr
    !-----------------------------------------------------------------------
 
    ! Check that input lat and lon are in valid range
@@ -1146,126 +1400,42 @@ subroutine phys_grid_find_col(lat, lon, owner, lcid, icol)
             'phys_grid_find_col: ERROR: lon must satisfy 0.<=lon<360. and lat must satisfy -90<=lat<=90.'
          write(iulog,*) &
             'input lon=', lon, '  input lat=', lat
-      endif
+      end if
       call endrun('phys_grid_find_col: input ERROR')
    end if
 
-   const = 180._r8/pi            ! degrees per radian
-   latr = lat/const              ! to radians
-   lonr = lon/const              ! to radians
+   latr = lat * deg2rad       ! to radians
+   lonr = lon * deg2rad       ! to radians
 
    owner   = -999
-   lcid  = -999
+   lcid    = -999
    icol    = -999
    distmin = 1.e10_r8
 
-   ! scan all chunks for closest point to lat, lon
-   do cid = 1, nchunks
-      do i = 1, chunks(cid)%ncols
-         clat = clat_p(chunks(cid)%lat(i))
-         clon = clon_p(chunks(cid)%lon(i))
-         dist2 = (clat-latr)**2 + (clon-lonr)**2
+   ! scan all local chunks for closest point to lat, lon
+   do cid = begchunk, endchunk
+      do i = 1, lchunks(cid)%ncols
+         clat = lchunks(cid)%lat(i)
+         clon = lchunks(cid)%lon(i)
+         dist2 = (clat - latr)**2 + (clon - lonr)**2
          if (dist2 < distmin ) then
             distmin = dist2
-            owner = chunks(cid)%owner
-            lcid = chunks(cid)%lcid
+            lcid = cid
             icol = i
-         endif
-      enddo
+         end if
+      end do
    end do
+
+   ! Find the global minimum
+   call MPI_Allreduce(distmin, gdistmin, 1, MPI_REAL8, MPI_MIN, mpicom, ierr)
+   ! Now find the owner of the global minimum
+   if (gdistmin == distmin) then
+      owner = iam
+   end if
+   cid = owner
+   call MPI_Allreduce(cid, owner, 1, MPI_INTEGER, MPI_MAX, mpicom, ierr)
 
 end subroutine phys_grid_find_col
-
-!========================================================================
-
-subroutine phys_grid_find_cols(lat, lon, nclosest, owner, lcid, icol, distmin, mlats, mlons)
-
-   !----------------------------------------------------------------------- 
-   ! 
-   ! Purpose: Find the global columns closest to the point specified by lat
-   !          and lon.  Return indices of owning process, local chunk, and 
-   !          column.
-   ! 
-   ! Authors: Phil Rasch / Patrick Worley / B. Eaton
-   ! 
-   !-----------------------------------------------------------------------
-   use physconst,    only : rearth
-   
-   real(r8), intent(in) :: lat, lon            ! requested location in degrees
-   integer, intent(in)  :: nclosest            ! number of closest points to find
-   integer, intent(out) :: owner(nclosest)     ! rank of chunk owner
-   integer, intent(out) :: lcid(nclosest)      ! local chunk index
-   integer, intent(out) :: icol(nclosest)      ! column index within the chunk
-   real(r8),intent(out) :: distmin(nclosest)   ! the distance (m) of the closest column(s)
-   real(r8),intent(out) :: mlats(nclosest)     ! the latitude of the closest column(s)
-   real(r8),intent(out) :: mlons(nclosest)     ! the longitude of the closest column(s)
-
-   ! local
-   real(r8) dist2           ! the distance (in radians**2 from lat, lon)
-   real(r8) latr, lonr      ! lat, lon (in radians) of requested location
-   real(r8) clat, clon      ! lat, lon (in radians) of column being tested
-   real(r8) const
-
-   integer i, j
-   integer cid
-   !-----------------------------------------------------------------------
-
-   ! Check that input lat and lon are in valid range
-   if (lon < 0.0_r8 .or. lon >= 360._r8 .or. &
-       lat < -90._r8 .or. lat > 90._r8) then
-      if (masterproc) then
-         write(iulog,*) &
-            'phys_grid_find_cols: ERROR: lon must satisfy 0.<=lon<360. and lat must satisfy -90<=lat<=90.'
-         write(iulog,*) &
-            'input lon=', lon, '  input lat=', lat
-      endif
-      call endrun('phys_grid_find_cols: input ERROR')
-   end if
-
-   const = 180._r8/pi            ! degrees per radian
-   latr = lat/const              ! to radians
-   lonr = lon/const              ! to radians
-
-   owner(:)   = -999
-   lcid(:)    = -999
-   icol(:)    = -999
-   mlats(:)   = -999
-   mlons(:)   = -999
-   distmin(:) = 1.e10_r8
-
-   ! scan all chunks for closest point to lat, lon
-   do cid = 1, nchunks
-      do i = 1, chunks(cid)%ncols
-         clat = clat_p(chunks(cid)%lat(i))
-         clon = clon_p(chunks(cid)%lon(i))
-         dist2 = acos(sin(latr) * sin(clat) + cos(latr) * cos(clat) * cos(clon - lonr)) * rearth       
-         
-         do j = nclosest, 1, -1
-            if (dist2 < distmin(j)) then
-            
-               if (j < nclosest) then
-                 distmin(j+1) = distmin(j)
-                 owner(j+1)   = owner(j)
-                 lcid(j+1)    = lcid(j)
-                 icol(j+1)    = icol(j)
-                 mlats(j+1)   = mlats(j)
-                 mlons(j+1)    = mlons(j)
-               end if
-             
-               distmin(j) = dist2
-               owner(j)   = chunks(cid)%owner
-               lcid(j)    = chunks(cid)%lcid
-               icol(j)    = i
-               mlats(j)   = clat * const
-               mlons(j)   = clon * const
-            else
-               exit
-            end if
-         enddo
-      enddo
-   end do
-   
-end subroutine phys_grid_find_cols
 !
 !========================================================================
 
@@ -1426,29 +1596,6 @@ logical function phys_grid_initialized ()
 !
 !========================================================================
 !
-   subroutine get_chunk_indices_p(index_beg, index_end)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Return range of indices for local chunks
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-!------------------------------Arguments--------------------------------
-   integer, intent(out) :: index_beg  ! first index used for local chunks
-   integer, intent(out) :: index_end  ! last index used for local chunks
-!-----------------------------------------------------------------------
-
-   index_beg = begchunk
-   index_end = endchunk
-
-   return
-   end subroutine get_chunk_indices_p
-!
-!========================================================================
-!
    subroutine get_gcol_all_p(lcid, latdim, gcols)
 !----------------------------------------------------------------------- 
 ! 
@@ -1500,40 +1647,6 @@ logical function phys_grid_initialized ()
 
 !
 !========================================================================
-
-   subroutine get_gcol_vec_p(lcid, lth, cols, gcols)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Return global physics column indices for set of chunk columns
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-   use ppgrid
-
-!------------------------------Arguments--------------------------------
-   integer, intent(in)  :: lcid          ! local chunk id
-   integer, intent(in)  :: lth           ! number of column indices
-   integer, intent(in)  :: cols(lth)     ! column indices
-
-   integer, intent(out) :: gcols(lth)    ! array of global physics 
-                                         !  columns indices
-
-!---------------------------Local workspace-----------------------------
-   integer :: i                          ! loop index
-
-!-----------------------------------------------------------------------
-   do i=1,lth
-     gcols(i) = lchunks(lcid)%gcol(cols(i))
-   enddo
-
-   return
-   end subroutine get_gcol_vec_p
-
-!
-!========================================================================
 !
    integer function get_ncols_p(lcid)
 !----------------------------------------------------------------------- 
@@ -1569,7 +1682,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: latdim        ! declared size of output array
@@ -1578,50 +1691,14 @@ logical function phys_grid_initialized ()
 
 !---------------------------Local workspace-----------------------------
    integer :: i                          ! loop index
-   integer :: cid                        ! global chunk id
 
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,chunks(cid)%ncols
-     lats(i) = chunks(cid)%lat(i)
-   enddo
+   do i = 1, lchunks(lcid)%ncols
+     lats(i) = lchunks(lcid)%lat_rank(i)
+   end do
 
    return
    end subroutine get_lat_all_p
-!
-!========================================================================
-
-   subroutine get_lat_vec_p(lcid, lth, cols, lats)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Return global latitude indices for set of chunk columns
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-   use ppgrid
-
-!------------------------------Arguments--------------------------------
-   integer, intent(in)  :: lcid          ! local chunk id
-   integer, intent(in)  :: lth           ! number of column indices
-   integer, intent(in)  :: cols(lth)     ! column indices
-
-   integer, intent(out) :: lats(lth)     ! array of global latitude indices
-
-!---------------------------Local workspace-----------------------------
-   integer :: i                          ! loop index
-   integer :: cid                        ! global chunk id
-
-!-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,lth
-     lats(i) = chunks(cid)%lat(cols(i))
-   enddo
-
-   return
-   end subroutine get_lat_vec_p
 !
 !========================================================================
 
@@ -1635,20 +1712,17 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: col           ! column index
 
-!---------------------------Local workspace-----------------------------
-   integer :: cid                        ! global chunk id
-
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   get_lat_p = chunks(cid)%lat(col)
+   get_lat_p = lchunks(lcid)%lat_rank(col)
 
    return
    end function get_lat_p
+
 !
 !========================================================================
 !
@@ -1656,19 +1730,14 @@ logical function phys_grid_initialized ()
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
-!  Was: Return all global longitude indices for chunk
-!  Now: Return all longitude offsets (+1) for chunk. These are offsets
-!       in ordered list of global columns from first
-!       column with given latitude to column with given latitude
-!       and longitude. This corresponds to the usual longitude indices
-!       for full and reduced lon/lat grids.
+!  Return all global longitude indices for chunk
 ! 
 ! Method: 
 ! 
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: londim        ! declared size of output array
@@ -1678,65 +1747,15 @@ logical function phys_grid_initialized ()
 
 !---------------------------Local workspace-----------------------------
    integer :: i                          ! loop index
-   integer :: lat                        ! latitude index
-   integer :: cid                        ! global chunk id
-   integer :: gcol                       ! global column id in latlon 
-                                         !  ordering
 
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,chunks(cid)%ncols
-     lat  = chunks(cid)%lat(i)
-     gcol = dyn_to_latlon_gcol_map(chunks(cid)%gcol(i))
-     lons(i) = (gcol - clat_p_idx(lat)) + 1
-   enddo
+   do i = 1, lchunks(lcid)%ncols
+     lons(i) = lchunks(lcid)%lon_rank(i)
+   end do
 
    return
    end subroutine get_lon_all_p
-!
-!========================================================================
 
-   subroutine get_lon_vec_p(lcid, lth, cols, lons)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: 
-!  Was: Return global longitude indices for set of chunk columns.
-!  Now: Return longitude offsets (+1) for set of chunk columns. 
-!       These are offsets in ordered list of global columns from first
-!       column with given latitude to column with given latitude
-!       and longitude. This corresponds to the usual longitude indices
-!       for full and reduced lon/lat grids.
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-   use ppgrid
-!------------------------------Arguments--------------------------------
-   integer, intent(in)  :: lcid          ! local chunk id
-   integer, intent(in)  :: lth           ! number of column indices
-   integer, intent(in)  :: cols(lth)     ! column indices
-
-   integer, intent(out) :: lons(lth)     ! array of global longitude indices
-
-!---------------------------Local workspace-----------------------------
-   integer :: i                          ! loop index
-   integer :: lat                        ! latitude index
-   integer :: cid                        ! global chunk id
-   integer :: gcol                       ! global column id in latlon 
-                                         !  ordering
-
-!-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,lth
-     lat = chunks(cid)%lat(cols(i))
-     gcol = dyn_to_latlon_gcol_map(chunks(cid)%gcol(i))
-     lons(i) = (gcol - clat_p_idx(lat)) + 1
-   enddo
-
-   return
-   end subroutine get_lon_vec_p
 !
 !========================================================================
 
@@ -1744,34 +1763,22 @@ logical function phys_grid_initialized ()
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: 
-!  Was: Return global longitude index for chunk column.
-!  Now: Return longitude offset (+1) for chunk column. This is the 
-!       offset in ordered list of global columns from first
-!       column with given latitude to column with given latitude
-!       and longitude. This corresponds to the usual longitude index
-!       for full and reduced lon/lat grids.
+!  Return global longitude index for chunk column.
 ! 
 ! Method: 
 ! 
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: col           ! column index
 
 !---------------------------Local workspace-----------------------------
-   integer :: cid                        ! global chunk id
-   integer :: lat                        ! latitude index
-   integer :: gcol                       ! global column id in latlon 
-                                         !  ordering
 
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   lat = chunks(cid)%lat(col)
-   gcol = dyn_to_latlon_gcol_map(chunks(cid)%gcol(col))
-   get_lon_p = (gcol - clat_p_idx(lat)) + 1
+   get_lon_p = lchunks(lcid)%lon_rank(col)
 
    return
    end function get_lon_p
@@ -1788,7 +1795,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid           ! local chunk id
    integer, intent(in)  :: rlatdim        ! declared size of output array
@@ -1797,12 +1804,10 @@ logical function phys_grid_initialized ()
 
 !---------------------------Local workspace-----------------------------
    integer :: i                           ! loop index
-   integer :: cid                         ! global chunk id
 
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,chunks(cid)%ncols
-     rlats(i) = clat_p(chunks(cid)%lat(i))
+   do i = 1, lchunks(lcid)%ncols
+     rlats(i) = lchunks(lcid)%rlat(i)
    enddo
 
    return
@@ -1820,7 +1825,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: rdim          ! declared size of output array
@@ -1831,9 +1836,9 @@ logical function phys_grid_initialized ()
    integer :: i                          ! loop index
 
 !-----------------------------------------------------------------------
-   do i=1,lchunks(lcid)%ncols
+   do i = 1, lchunks(lcid)%ncols
      area(i) = lchunks(lcid)%area(i)
-   enddo
+   end do
 
    return
    end subroutine get_area_all_p
@@ -1850,7 +1855,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: col           ! column index
@@ -1873,7 +1878,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: rdim          ! declared size of output array
@@ -1884,7 +1889,7 @@ logical function phys_grid_initialized ()
    integer :: i                          ! loop index
 
 !-----------------------------------------------------------------------
-   do i=1,lchunks(lcid)%ncols
+   do i = 1, lchunks(lcid)%ncols
      wght(i) = lchunks(lcid)%wght(i)
    enddo
 
@@ -1903,7 +1908,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: col           ! column index
@@ -1913,39 +1918,7 @@ logical function phys_grid_initialized ()
 
    return
    end function get_wght_p
-!
-!========================================================================
-!
-   subroutine get_rlat_vec_p(lcid, lth, cols, rlats)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Return latitudes (in radians) for set of chunk columns
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-   use ppgrid
-!------------------------------Arguments--------------------------------
-   integer, intent(in)  :: lcid          ! local chunk id
-   integer, intent(in)  :: lth           ! number of column indices
-   integer, intent(in)  :: cols(lth)     ! column indices
 
-   real(r8), intent(out) :: rlats(lth)   ! array of latitudes
-
-!---------------------------Local workspace-----------------------------
-   integer :: i                          ! loop index
-   integer :: cid                        ! global chunk id
-
-!-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,lth
-     rlats(i) = clat_p(chunks(cid)%lat(cols(i)))
-   enddo
-
-   return
-   end subroutine get_rlat_vec_p
 !
 !========================================================================
 
@@ -1959,17 +1932,13 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: col           ! column index
 
-!---------------------------Local workspace-----------------------------
-   integer :: cid                        ! global chunk id
-
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   get_rlat_p = clat_p(chunks(cid)%lat(col))
+   get_rlat_p = lchunks(lcid)%rlat(col)
 
    return
    end function get_rlat_p
@@ -1986,7 +1955,7 @@ logical function phys_grid_initialized ()
 ! Author: Patrick Worley
 ! 
 !-----------------------------------------------------------------------
-   use ppgrid
+
 !------------------------------Arguments--------------------------------
    integer, intent(in)  :: lcid           ! local chunk id
    integer, intent(in)  :: rlondim        ! declared size of output array
@@ -1995,49 +1964,15 @@ logical function phys_grid_initialized ()
 
 !---------------------------Local workspace-----------------------------
    integer :: i                           ! loop index
-   integer :: cid                         ! global chunk id
 
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,chunks(cid)%ncols
-     rlons(i) = clon_p(chunks(cid)%lon(i))
-   enddo
+   do i = 1, lchunks(lcid)%ncols
+     rlons(i) = lchunks(lcid)%rlon(i)
+   end do
 
    return
    end subroutine get_rlon_all_p
-!
-!========================================================================
 
-   subroutine get_rlon_vec_p(lcid, lth, cols, rlons)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Return longitudes (in radians) for set of chunk columns
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-   use ppgrid
-!------------------------------Arguments--------------------------------
-   integer, intent(in)  :: lcid         ! local chunk id
-   integer, intent(in)  :: lth           ! number of column indices
-   integer, intent(in)  :: cols(lth)     ! column indices
-
-   real(r8), intent(out) :: rlons(lth)   ! array of longitudes
-
-!---------------------------Local workspace-----------------------------
-   integer :: i                          ! loop index
-   integer :: cid                        ! global chunk id
-
-!-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   do i=1,lth
-     rlons(i) = clon_p(chunks(cid)%lon(cols(i)))
-   enddo
-
-   return
-   end subroutine get_rlon_vec_p
 !
 !========================================================================
 
@@ -2056,109 +1991,16 @@ logical function phys_grid_initialized ()
    integer, intent(in)  :: lcid          ! local chunk id
    integer, intent(in)  :: col           ! column index
 
-!---------------------------Local workspace-----------------------------
-   integer :: cid                        ! global chunk id
-
 !-----------------------------------------------------------------------
-   cid = lchunks(lcid)%cid
-   get_rlon_p = clon_p(chunks(cid)%lon(col))
+   get_rlon_p = lchunks(lcid)%rlon(col)
 
    return
    end function get_rlon_p
-!
-!========================================================================
-!
-!  integer function get_gcol_owner_p(gcol)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Return owner of physics column with indicate index
-! 
-! Method: 
-! 
-! Author: P. Worley
-! 
-!-----------------------------------------------------------------------
-!------------------------------Arguments--------------------------------
-!  integer, intent(in)  :: gcol     ! physics column index
-!
-!-----------------------------------------------------------------------
-!
-!  get_gcol_owner_p = chunks(knuhcs(gcol)%chunkid)%owner
-!
-!  return
-!  end function get_gcol_owner_p
-!
-!========================================================================
 
-!  subroutine buff_to_chunk(fdim,mdim,lbuff,localchunks)
-!-----------------------------------------------------------------------
-!
-! Purpose: Copy from local buffer 
-!          to local chunk data structure.
-!          Needed for cpl6.
-!
-! Method:
-!
-! Author: Pat Worley and Robert Jacob
-!
-!-----------------------------------------------------------------------
-!------------------------------Arguments--------------------------------
-!  integer, intent(in) :: fdim      ! declared length of first lbuff dimension
-!  integer, intent(in) :: mdim      ! declared length of middle lbuff dimension
-!  real(r8), intent(in) :: lbuff(fdim, mdim) ! local lon/lat buffer
-!
-!  real(r8), intent(out):: localchunks(pcols,mdim,begchunk:endchunk) ! local chunks
-!
-!
-!---------------------------Local workspace-----------------------------
-!  integer :: i,j,m,n                      ! loop indices
-!
-!  integer, save :: numcols = 0
-!  integer, allocatable, save :: columnid(:), chunkid(:)
-!-----------------------------------------------------------------------
-!
-!  if (numcols .eq. 0) then
-!     n = 0
-!     do i=1,ngcols
-!        if (dyn_to_latlon_gcol_map(i) .ne. -1) then
-!           if(chunks(knuhcs(i)%chunkid)%owner .eq. iam) then
-!              n = n + 1
-!           endif
-!        endif
-!     enddo
-!     allocate(columnid(1:n))
-!     allocate(chunkid(1:n))
-!
-!     n = 0
-!     do i=1,ngcols
-!        if (dyn_to_latlon_gcol_map(i) .ne. -1) then
-!           if(chunks(knuhcs(i)%chunkid)%owner .eq. iam) then
-!              n = n + 1
-!              columnid(n) = knuhcs(i)%col
-!              chunkid(n)  = chunks(knuhcs(i)%chunkid)%lcid
-!           endif
-!        endif
-!     end do
-!
-!     numcols = n
-!  endif
-!
-!  if (numcols .gt. fdim) call endrun('buff_to_chunk')
-!  do m=1,mdim
-!dir$ concurrent
-!dir$ prefervector, preferstream
-!     do n = 1, numcols
-!        localchunks(columnid(n),m,chunkid(n)) = lbuff(n,m)
-!     end do
-!  end do
-!
-!  return
-!  end subroutine buff_to_chunk
 !
 !========================================================================
-
-   subroutine scatter_field_to_chunk(fdim,mdim,ldim, &
-                                     hdim1d,globalfield,localchunks)
+   subroutine scatter_field_to_chunk(fdim, mdim, ldim,             &
+                                     hdim1d, globalfield, localchunks)
 !----------------------------------------------------------------------- 
 ! 
 ! Purpose: Distribute field
@@ -2194,7 +2036,7 @@ logical function phys_grid_initialized ()
 #if ( defined SPMD )
    real(r8) gfield_p(fdim,mdim,ldim,ngcols) 
                                          ! vector to be scattered
-   real(r8) lfield_p(fdim,mdim,ldim,nlcols) 
+   real(r8) lfield_p(fdim,mdim,ldim,num_grid_columns)
                                          ! local component of scattered
                                          !  vector
    integer :: displs(0:npes-1)           ! scatter displacements
@@ -2205,6 +2047,10 @@ logical function phys_grid_initialized ()
 #endif
 
 !-----------------------------------------------------------------------
+!!XXgoldyXX: v debug only
+call endrun("SCATTER_FIELD_TO_CHUNK not supported")
+#if 0
+!!XXgoldyXX: ^ debug only
    if (hdim1d < hdim1_d) then
       write(iulog,*) __FILE__,__LINE__,hdim1d,hdim1_d
       call endrun ('SCATTER_FIELD_TO_CHUNK error: hdim1d < hdim1_d')
@@ -2300,363 +2146,12 @@ logical function phys_grid_initialized ()
    end do
 
 #endif
+!!XXgoldyXX: v debug only
+#endif
+!!XXgoldyXX: ^ debug only
 
    return
    end subroutine scatter_field_to_chunk
-!========================================================================
-
-   subroutine scatter_field_to_chunk4(fdim,mdim,ldim, &
-                                      hdim1d,globalfield,localchunks)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Distribute field
-!          to decomposed chunk data structure
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-!------------------------------Arguments--------------------------------
-   integer, intent(in) :: fdim      ! declared length of first dimension
-   integer, intent(in) :: mdim      ! declared length of middle dimension
-   integer, intent(in) :: ldim      ! declared length of last dimension
-   integer, intent(in) :: hdim1d    ! declared first horizontal index 
-                                    ! dimension
-   real(r4), intent(in) :: globalfield(fdim,hdim1d,mdim,hdim2_d,ldim) 
-                                    ! global field
-
-   real(r4), intent(out):: localchunks(fdim,pcols,mdim, &
-                                       begchunk:endchunk,ldim) 
-                                    ! local chunks
-
-!---------------------------Local workspace-----------------------------
-   integer :: f,i,m,l,p                  ! loop indices
-   integer :: cid                        ! global chunk id
-   integer :: lcid                       ! local chunk id
-   integer :: lid                        ! local column index
-   integer :: gcol                       ! global column index
-   integer :: h1                         ! first horizontal dimension index
-   integer :: h2                         ! second horizontal dimension index
-
-#if ( defined SPMD )
-   real(r4) gfield_p(fdim,mdim,ldim,ngcols) 
-                                         ! vector to be scattered
-   real(r4) lfield_p(fdim,mdim,ldim,nlcols) 
-                                         ! local component of scattered
-                                         !  vector
-   integer :: displs(0:npes-1)           ! scatter displacements
-   integer :: sndcnts(0:npes-1)          ! scatter send counts
-   integer :: recvcnt                    ! scatter receive count
-   integer :: beglcol                    ! beginning index for local columns
-                                         !  in global column ordering
-#endif
-
-!-----------------------------------------------------------------------
-   if (hdim1d < hdim1_d) then
-      call endrun ('SCATTER_FIELD_TO_CHUNK4 error: hdim1d < hdim1_d')
-   endif
-#if ( defined SPMD )
-   displs(0) = 0
-   sndcnts(0) = fdim*mdim*ldim*gs_col_num(0)
-   beglcol = 0
-   do p=1,npes-1
-     displs(p) = displs(p-1) + sndcnts(p-1)
-     sndcnts(p) = fdim*mdim*ldim*gs_col_num(p)
-     if (p <= iam) then
-        beglcol = beglcol + gs_col_num(p-1)
-     endif
-   enddo
-   recvcnt = fdim*mdim*ldim*nlcols
-
-   if (masterproc) then
-      ! copy field into global (process-ordered) chunked data structure
-      do l=1,ldim
-!DIR$ PREFERVECTOR
-!DIR$ PREFERSTREAM
-!DIR$ CONCURRENT
-         do i=1,ngcols_p
-            cid  = pgcols(i)%chunk
-            lid  = pgcols(i)%ccol
-            gcol = chunks(cid)%gcol(lid)
-            h2   = (gcol-1)/hdim1_d + 1
-            h1   = mod((gcol-1),hdim1_d) + 1
-            do m=1,mdim
-               do f=1,fdim
-                  gfield_p(f,m,l,i) = &
-                     globalfield(f, h1, m, h2, l)
-               end do
-            end do
-         end do
-      end do
-   endif
-
-! scatter to other processes
-! (pgcols ordering consistent with begchunk:endchunk 
-!  local ordering)
-
-   call t_barrierf('sync_scat_ftoc', mpicom)
-   call mpiscatterv(gfield_p, sndcnts, displs, mpir4, &
-                    lfield_p, recvcnt, mpir4, 0, mpicom)
-
-! copy into local chunked data structure
-
-!DIR$ PREFERVECTOR
-!DIR$ PREFERSTREAM
-!DIR$ CONCURRENT
-   do i=1,nlcols
-      cid = pgcols(beglcol+i)%chunk
-      lcid = chunks(cid)%lcid
-      lid = pgcols(beglcol+i)%ccol
-      do l=1,ldim
-         do m=1,mdim
-            do f=1,fdim
-               localchunks(f,lid,m,lcid,l) = &
-                 lfield_p(f, m, l, i)
-            end do
-         end do
-      end do
-   end do
-#else
-
-   ! copy field into chunked data structure
-   ! (pgcol ordering chosen to reflect begchunk:endchunk 
-   !  local ordering)
-   do l=1,ldim
-!DIR$ PREFERVECTOR
-!DIR$ PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,ngcols_p
-         cid  = pgcols(i)%chunk
-         lcid = chunks(cid)%lcid
-         lid  = pgcols(i)%ccol
-         gcol = chunks(cid)%gcol(lid)
-         h2   = (gcol-1)/hdim1_d + 1
-         h1   = mod((gcol-1),hdim1_d) + 1
-         do m=1,mdim
-            do f=1,fdim
-               localchunks(f,lid,m,lcid,l) = &
-                  globalfield(f, h1, m, h2, l)
-            end do
-         end do
-      end do
-   end do
-
-#endif
-
-   return
-   end subroutine scatter_field_to_chunk4
-!========================================================================
-
-   subroutine scatter_field_to_chunk_int(fdim,mdim,ldim, &
-                                         hdim1d,globalfield,localchunks)
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Distribute field
-!          to decomposed chunk data structure
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!------------------------------Arguments--------------------------------
-   integer, intent(in) :: fdim      ! declared length of first dimension
-   integer, intent(in) :: mdim      ! declared length of middle dimension
-   integer, intent(in) :: ldim      ! declared length of last dimension
-   integer, intent(in) :: hdim1d    ! declared first horizontal index 
-                                    ! dimension
-   integer, intent(in) :: globalfield(fdim,hdim1d,mdim,hdim2_d,ldim) 
-                                    ! global field
-
-   integer, intent(out):: localchunks(fdim,pcols,mdim, &
-                                       begchunk:endchunk,ldim) 
-                                    ! local chunks
-
-!---------------------------Local workspace-----------------------------
-   integer :: f,i,m,l,p                  ! loop indices
-   integer :: cid                        ! global chunk id
-   integer :: lcid                       ! local chunk id
-   integer :: lid                        ! local column index
-   integer :: gcol                       ! global column index
-   integer :: h1                         ! first horizontal dimension index
-   integer :: h2                         ! second horizontal dimension index
-
-#if ( defined SPMD )
-   integer gfield_p(fdim,mdim,ldim,ngcols) 
-                                         ! vector to be scattered
-   integer lfield_p(fdim,mdim,ldim,nlcols) 
-                                         ! local component of scattered
-                                         !  vector
-   integer :: displs(0:npes-1)           ! scatter displacements
-   integer :: sndcnts(0:npes-1)          ! scatter send counts
-   integer :: recvcnt                    ! scatter receive count
-   integer :: beglcol                    ! beginning index for local columns
-                                         !  in global column ordering
-#endif
-
-!-----------------------------------------------------------------------
-   if (hdim1d < hdim1_d) then
-      call endrun ('SCATTER_FIELD_TO_CHUNK_INT error: hdim1d < hdim1_d')
-   endif
-#if ( defined SPMD )
-   displs(0) = 0
-   sndcnts(0) = fdim*mdim*ldim*gs_col_num(0)
-   beglcol = 0
-   do p=1,npes-1
-     displs(p) = displs(p-1) + sndcnts(p-1)
-     sndcnts(p) = fdim*mdim*ldim*gs_col_num(p)
-     if (p <= iam) then
-        beglcol = beglcol + gs_col_num(p-1)
-     endif
-   enddo
-   recvcnt = fdim*mdim*ldim*nlcols
-
-   if (masterproc) then
-
-! copy field into global (process-ordered) chunked data structure
-
-      do l=1,ldim
-!DIR$ PREFERVECTOR
-!DIR$ PREFERSTREAM
-!DIR$ CONCURRENT
-         do i=1,ngcols_p
-            cid = pgcols(i)%chunk
-            lid = pgcols(i)%ccol
-            gcol = chunks(cid)%gcol(lid)
-            h2   = (gcol-1)/hdim1_d + 1
-            h1   = mod((gcol-1),hdim1_d) + 1
-            do m=1,mdim
-               do f=1,fdim
-                  gfield_p(f,m,l,i) = &
-                     globalfield(f, h1, m, h2, l)
-               end do
-            end do
-         end do
-      end do
-   endif
-
-! scatter to other processes
-! (pgcols ordering consistent with begchunk:endchunk 
-!  local ordering)
-
-   call t_barrierf('sync_scat_ftoc', mpicom)
-   call mpiscatterv(gfield_p, sndcnts, displs, mpiint, &
-                    lfield_p, recvcnt, mpiint, 0, mpicom)
-
-! copy into local chunked data structure
-
-!DIR$ PREFERVECTOR
-!DIR$ PREFERSTREAM
-!DIR$ CONCURRENT
-   do i=1,nlcols
-      cid = pgcols(beglcol+i)%chunk
-      lcid = chunks(cid)%lcid
-      lid = pgcols(beglcol+i)%ccol
-      do l=1,ldim
-         do m=1,mdim
-            do f=1,fdim
-               localchunks(f,lid,m,lcid,l) = &
-                 lfield_p(f, m, l, i)
-            end do
-         end do
-      end do
-   end do
-#else
-
-! copy field into chunked data structure
-! (pgcol ordering chosen to reflect begchunk:endchunk 
-!  local ordering)
-   do l=1,ldim
-!DIR$ PREFERVECTOR
-!DIR$ PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,ngcols_p
-         cid  = pgcols(i)%chunk
-         lcid = chunks(cid)%lcid
-         lid  = pgcols(i)%ccol
-         gcol = chunks(cid)%gcol(lid)
-         h2   = (gcol-1)/hdim1_d + 1
-         h1   = mod((gcol-1),hdim1_d) + 1
-         do m=1,mdim
-            do f=1,fdim
-               localchunks(f,lid,m,lcid,l) = &
-                  globalfield(f, h1, m, h2, l)
-            end do
-         end do
-      end do
-   end do
-
-#endif
-
-   return
-   end subroutine scatter_field_to_chunk_int
-!
-!========================================================================
-!
-!  subroutine chunk_to_buff(fdim,mdim,localchunks,lbuff)
-!
-!-----------------------------------------------------------------------
-!
-! Purpose: Copy from local chunk data structure
-!          to local buffer.  Needed for cpl6.
-!          (local = assigned to same process)
-!
-! Method:
-!
-! Author: Pat Worley and Robert Jacob
-!-----------------------------------------------------------------------
-!------------------------------Arguments--------------------------------
-!  integer, intent(in) :: fdim      ! declared length of first lbuff dimension
-!  integer, intent(in) :: mdim      ! declared length of middle lbuff dimension
-!  real(r8), intent(in):: localchunks(pcols,mdim, begchunk:endchunk) ! local chunks
-!
-!  real(r8), intent(out) :: lbuff(fdim,mdim) ! local buff
-!
-!---------------------------Local workspace-----------------------------
-!  integer :: i,j,m,n                  ! loop indices
-!
-!  integer, save :: numcols = 0
-!  integer, allocatable, save :: columnid(:), chunkid(:)
-!-----------------------------------------------------------------------
-!
-!  if (numcols .eq. 0) then
-!     n = 0
-!     do i=1,ngcols
-!        if (dyn_to_latlon_gcol_map(i) .ne. -1) then
-!           if(chunks(knuhcs(i)%chunkid)%owner .eq. iam) then
-!              n = n + 1
-!           endif
-!        endif
-!     enddo
-!     allocate(columnid(1:n))
-!     allocate(chunkid(1:n))
-!
-!     n = 0
-!     do i=1,ngcols
-!        if (dyn_to_latlon_gcol_map(i) .ne. -1) then
-!           if(chunks(knuhcs(i)%chunkid)%owner .eq. iam) then
-!              n = n + 1
-!              columnid(n) = knuhcs(i)%col
-!              chunkid(n)  = chunks(knuhcs(i)%chunkid)%lcid
-!           endif
-!        endif
-!     end do
-!
-!     numcols = n
-!  endif
-!
-!  if (numcols .gt. fdim) call endrun('chunk_to_buff')
-!  do m=1,mdim
-!dir$ concurrent
-!dir$ prefervector, preferstream
-!     do n = 1, numcols
-!        lbuff(n,m) = localchunks(columnid(n),m,chunkid(n))
-!     end do
-!  end do
-!
-!  return
-!  end subroutine chunk_to_buff
-!
 !
 !========================================================================
 !
@@ -2701,7 +2196,7 @@ logical function phys_grid_initialized ()
 #if ( defined SPMD )
    real(r8) gfield_p(fdim,mdim,ldim,ngcols) 
                                          ! vector to be gathered
-   real(r8) lfield_p(fdim,mdim,ldim,nlcols) 
+   real(r8) lfield_p(fdim,mdim,ldim,num_grid_columns) 
                                          ! local component of gather
                                          !  vector
    integer :: displs(0:npes-1)           ! gather displacements
@@ -2712,6 +2207,10 @@ logical function phys_grid_initialized ()
 #endif
 
 !-----------------------------------------------------------------------
+!!XXgoldyXX: v debug only
+call endrun("GATHER_CHUNK_TO_FIELD not supported")
+#if 0
+!!XXgoldyXX: ^ debug only
    if (hdim1d < hdim1_d) then
       call endrun ('GATHER_CHUNK_TO_FIELD error: hdim1d < hdim1_d')
    endif
@@ -2800,302 +2299,12 @@ logical function phys_grid_initialized ()
    end do
 
 #endif
+!!XXgoldyXX: v debug only
+#endif
+!!XXgoldyXX: ^ debug only
 
    return
    end subroutine gather_chunk_to_field
-
-!
-!========================================================================
-!
-   subroutine gather_chunk_to_field4 (fdim,mdim,ldim, &
-                                      hdim1d,localchunks,globalfield)
-
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Reconstruct field
-!          from decomposed chunk data structure
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-#if ( defined SPMD )
-   use spmd_utils,    only: fc_gathervr4
-#endif
-!------------------------------Arguments--------------------------------
-   integer, intent(in) :: fdim      ! declared length of first dimension
-   integer, intent(in) :: mdim      ! declared length of middle dimension
-   integer, intent(in) :: ldim      ! declared length of last dimension
-   integer, intent(in) :: hdim1d    ! declared first horizontal index 
-                                    ! dimension
-   real(r4), intent(in):: localchunks(fdim,pcols,mdim, &
-                                      begchunk:endchunk,ldim) 
-                                    ! local chunks
-
-   real(r4), intent(out) :: globalfield(fdim,hdim1d,mdim,hdim2_d,ldim) 
-                                    ! global field
-
-!---------------------------Local workspace-----------------------------
-   integer :: f,i,m,l,p                  ! loop indices
-   integer :: cid                        ! global chunk id
-   integer :: lcid                       ! local chunk id
-   integer :: lid                        ! local column index
-   integer :: gcol                       ! global column index
-   integer :: h1                         ! first horizontal dimension index
-   integer :: h2                         ! second horizontal dimension index
-
-#if ( defined SPMD )
-   real(r4) gfield_p(fdim,mdim,ldim,ngcols) 
-                                         ! vector to be gathered
-   real(r4) lfield_p(fdim,mdim,ldim,nlcols) 
-                                         ! local component of gather
-                                         !  vector
-   integer :: displs(0:npes-1)           ! gather displacements
-   integer :: rcvcnts(0:npes-1)          ! gather receive count
-   integer :: sendcnt                    ! gather send counts
-   integer :: beglcol                    ! beginning index for local columns
-                                         !  in global column ordering
-#endif
-
-!-----------------------------------------------------------------------
-   if (hdim1d < hdim1_d) then
-      call endrun ('GATHER_CHUNK_TO_FIELD4 error: hdim1d < hdim1_d')
-   endif
-#if ( defined SPMD )
-   displs(0) = 0
-   rcvcnts(0) = fdim*mdim*ldim*gs_col_num(0)
-   beglcol = 0
-   do p=1,npes-1
-     displs(p) = displs(p-1) + rcvcnts(p-1)
-     rcvcnts(p) = fdim*mdim*ldim*gs_col_num(p)
-     if (p <= iam) then
-        beglcol = beglcol + gs_col_num(p-1)
-     endif
-   enddo
-   sendcnt = fdim*mdim*ldim*nlcols
-
-! copy into local gather data structure
-
-   do l=1,ldim
-!DIR$ PREFERVECTOR, PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,nlcols
-         cid = pgcols(beglcol+i)%chunk
-         lcid = chunks(cid)%lcid
-         lid = pgcols(beglcol+i)%ccol
-         do m=1,mdim
-            do f=1,fdim
-               lfield_p(f, m, l, i) = &
-                  localchunks(f,lid,m,lcid,l)
-            end do
-         end do
-      end do
-   end do
-
-! gather from other processes
-
-   call t_barrierf('sync_gath_ctof', mpicom)
-   call fc_gathervr4(lfield_p, sendcnt, mpir4, &
-                     gfield_p, rcvcnts, displs, mpir4, 0, mpicom)
-
-   if (masterproc) then
-
-! copy gathered columns into lon/lat field
-
-!DIR$ PREFERVECTOR, PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,ngcols_p
-         cid  = pgcols(i)%chunk
-         lid  = pgcols(i)%ccol
-         gcol = chunks(cid)%gcol(lid)
-         h2   = (gcol-1)/hdim1_d + 1
-         h1   = mod((gcol-1),hdim1_d) + 1
-         do l=1,ldim
-            do m=1,mdim
-               do f=1,fdim
-                  globalfield(f, h1, m, h2, l)    &
-                  = gfield_p(f,m,l,i)
-               end do
-            end do
-         end do
-      end do
-   endif
-
-#else
-
-! copy chunked data structure into dynamics field
-! (pgcol ordering chosen to reflect begchunk:endchunk 
-!  local ordering)
-
-   do l=1,ldim
-!DIR$ PREFERVECTOR, PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,ngcols_p
-         cid  = pgcols(i)%chunk
-         lcid = chunks(cid)%lcid
-         lid  = pgcols(i)%ccol
-         gcol = chunks(cid)%gcol(lid)
-         h2   = (gcol-1)/hdim1_d + 1
-         h1   = mod((gcol-1),hdim1_d) + 1
-         do m=1,mdim
-            do f=1,fdim
-               globalfield(f, h1, m, h2, l)    &
-               = localchunks(f,lid,m,lcid,l)
-            end do
-         end do
-      end do
-   end do
-
-#endif
-
-   return
-   end subroutine gather_chunk_to_field4
-
-!
-!========================================================================
-!
-   subroutine gather_chunk_to_field_int (fdim,mdim,ldim, &
-                                         hdim1d,localchunks,globalfield)
-
-!----------------------------------------------------------------------- 
-! 
-! Purpose: Reconstruct field
-!          from decomposed chunk data structure
-! 
-! Method: 
-! 
-! Author: Patrick Worley
-! 
-!-----------------------------------------------------------------------
-#if ( defined SPMD )
-   use spmd_utils,    only: fc_gathervint
-#endif
-!------------------------------Arguments--------------------------------
-   integer, intent(in) :: fdim      ! declared length of first dimension
-   integer, intent(in) :: mdim      ! declared length of middle dimension
-   integer, intent(in) :: ldim      ! declared length of last dimension
-   integer, intent(in) :: hdim1d    ! declared first horizontal index 
-                                    ! dimension
-   integer, intent(in):: localchunks(fdim,pcols,mdim,begchunk:endchunk,ldim) ! local chunks
-
-   integer, intent(out) :: globalfield(fdim,hdim1d,mdim,hdim2_d,ldim) ! global field
-
-!---------------------------Local workspace-----------------------------
-
-   integer :: f,i,m,l,p                  ! loop indices
-   integer :: cid                        ! global chunk id
-   integer :: lcid                       ! local chunk id
-   integer :: lid                        ! local column index
-   integer :: gcol                       ! global column index
-   integer :: h1                         ! first horizontal dimension index
-   integer :: h2                         ! second horizontal dimension index
-
-#if ( defined SPMD )
-   integer gfield_p(fdim,mdim,ldim,ngcols) 
-                                         ! vector to be gathered
-   integer lfield_p(fdim,mdim,ldim,nlcols) 
-                                         ! local component of gather
-                                         !  vector
-   integer :: displs(0:npes-1)           ! gather displacements
-   integer :: rcvcnts(0:npes-1)          ! gather receive count
-   integer :: sendcnt                    ! gather send counts
-   integer :: beglcol                    ! beginning index for local columns
-                                         !  in global column ordering
-#endif
-
-!-----------------------------------------------------------------------
-   if (hdim1d < hdim1_d) then
-      call endrun ('GATHER_CHUNK_TO_FIELD_INT error: hdim1d < hdim1_d')
-   endif
-#if ( defined SPMD )
-   displs(0) = 0
-   rcvcnts(0) = fdim*mdim*ldim*gs_col_num(0)
-   beglcol = 0
-   do p=1,npes-1
-     displs(p) = displs(p-1) + rcvcnts(p-1)
-     rcvcnts(p) = fdim*mdim*ldim*gs_col_num(p)
-     if (p <= iam) then
-        beglcol = beglcol + gs_col_num(p-1)
-     endif
-   enddo
-   sendcnt = fdim*mdim*ldim*nlcols
-
-! copy into local gather data structure
-
-   do l=1,ldim
-!DIR$ PREFERVECTOR, PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,nlcols
-         cid = pgcols(beglcol+i)%chunk
-         lcid = chunks(cid)%lcid
-         lid = pgcols(beglcol+i)%ccol
-         do m=1,mdim
-            do f=1,fdim
-               lfield_p(f, m, l, i) = &
-                  localchunks(f,lid,m,lcid,l)
-            end do
-         end do
-      end do
-   end do
-
-! gather from other processes
-
-   call t_barrierf('sync_gath_ctof', mpicom)
-   call fc_gathervint(lfield_p, sendcnt, mpiint, &
-                      gfield_p, rcvcnts, displs, mpiint, 0, mpicom)
-
-   if (masterproc) then
-
-! copy gathered columns into lon/lat field
-
-!DIR$ PREFERVECTOR, PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,ngcols_p
-         cid  = pgcols(i)%chunk
-         lid  = pgcols(i)%ccol
-         gcol = chunks(cid)%gcol(lid)
-         h2   = (gcol-1)/hdim1_d + 1
-         h1   = mod((gcol-1),hdim1_d) + 1
-         do l=1,ldim
-            do m=1,mdim
-               do f=1,fdim
-                  globalfield(f, h1, m, h2, l)    &
-                  = gfield_p(f,m,l,i)
-               end do
-            end do
-         end do
-      end do
-   endif
-
-#else
-
-   ! copy chunked data structure into lon/lat field
-   ! (pgcol ordering chosen to reflect begchunk:endchunk 
-   !  local ordering)
-   do l=1,ldim
-!DIR$ PREFERVECTOR, PREFERSTREAM
-!DIR$ CONCURRENT
-      do i=1,ngcols_p
-         cid  = pgcols(i)%chunk
-         lcid = chunks(cid)%lcid
-         lid  = pgcols(i)%ccol
-         gcol = chunks(cid)%gcol(lid)
-         h2   = (gcol-1)/hdim1_d + 1
-         h1   = mod((gcol-1),hdim1_d) + 1
-         do m=1,mdim
-            do f=1,fdim
-               globalfield(f, h1, m, h2, l)    &
-               = localchunks(f,lid,m,lcid,l)
-            end do
-         end do
-      end do
-   end do
-
-#endif
-
-   return
-   end subroutine gather_chunk_to_field_int
 
 !
 !========================================================================
@@ -3126,6 +2335,10 @@ logical function phys_grid_initialized ()
    real(r8), allocatable :: globalfield(:,:,:,:,:)
                                     ! global field
 !-----------------------------------------------------------------------
+!!XXgoldyXX: v debug only
+call endrun("WRITE_FIELD_FROM_CHUNK not supported")
+#if 0
+!!XXgoldyXX: ^ debug only
 
    allocate(globalfield(fdim,hdim1_d,mdim,hdim2_d,ldim))
 
@@ -3140,6 +2353,9 @@ logical function phys_grid_initialized ()
    endif
 
    deallocate(globalfield)
+!!XXgoldyXX: v debug only
+#endif
+!!XXgoldyXX: ^ debug only
 
    return
    end subroutine write_field_from_chunk
@@ -3174,6 +2390,10 @@ logical function phys_grid_initialized ()
    real(r8), allocatable :: globalfield(:,:,:,:,:)
                                     ! global field
 !-----------------------------------------------------------------------
+!!XXgoldyXX: v debug only
+call endrun("READ_CHUNK_FROM_FIELD not supported")
+#if 0
+!!XXgoldyXX: ^ debug only
 
    allocate(globalfield(fdim,hdim1_d,mdim,hdim2_d,ldim))
 
@@ -3188,6 +2408,9 @@ logical function phys_grid_initialized ()
    call scatter_field_to_chunk (fdim,mdim,ldim,hdim1_d,globalfield,localchunks)
 
    deallocate(globalfield)
+!!XXgoldyXX: v debug only
+#endif
+!!XXgoldyXX: ^ debug only
 
    return
    end subroutine read_chunk_from_field
@@ -3213,9 +2436,8 @@ logical function phys_grid_initialized ()
 # if defined(MODCM_DP_TRANSPOSE)
    use mod_comm, only: blockdescriptor, mp_sendirr, mp_recvirr,  &
                        get_partneroffset, max_nparcels
-   use mpishorthand,  only : mpicom
 # endif
-   use spmd_utils,    only: altalltoallv
+   use spmd_utils,    only: altalltoallv, mpicom
 #endif
 !------------------------------Parameters-------------------------------
 !
@@ -3543,9 +2765,8 @@ logical function phys_grid_initialized ()
 # if defined(MODCM_DP_TRANSPOSE)
    use mod_comm, only: blockdescriptor, mp_sendirr, mp_recvirr,  &
                        get_partneroffset, max_nparcels
-   use mpishorthand,  only : mpicom
 # endif
-   use spmd_utils,    only: altalltoallv
+   use spmd_utils,    only: altalltoallv, mpicom
 #endif
 !------------------------------Parameters-------------------------------
 !
@@ -3856,6 +3077,8 @@ logical function phys_grid_initialized ()
 !
 !========================================================================
 
+!!XXgoldyXX: v not needed?
+#if 0
    subroutine create_chunks(opt, chunks_per_thread)
 !----------------------------------------------------------------------- 
 ! 
@@ -4995,6 +4218,8 @@ logical function phys_grid_initialized ()
    end subroutine assign_chunks
 !
 !========================================================================
+#endif
+!!XXgoldyXX: ^ not needed?
 
 !#######################################################################
 
