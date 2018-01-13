@@ -1429,7 +1429,9 @@ contains
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CN ratio flexibility
-                        cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
+                        cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) &
+
+                             + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
                             (leafcn(ivt(p)) - leafcn(ivt(p))*(1- cn_stoich_var)),0.0_r8),1.0_r8)
 
                         plant_ndemand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * &
@@ -1603,7 +1605,8 @@ contains
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CP ratio flexibility
-                        cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
+                        cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) &
+                             + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
                             (leafcp(ivt(p)) - leafcp(ivt(p))*(1- cp_stoich_var)),0.0_r8),1.0_r8)
 
                         plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
@@ -1665,7 +1668,7 @@ contains
                      end if
 
                      if (nu_com .eq. 'MIC') sminp_to_plant_vr(c,j) = min(max( 0._r8, &
-                                            (solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) - adsorb_to_labilep_vr(c,j) ), col_plant_pdemand_vr(c,j)) 
+                          (solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) - adsorb_to_labilep_vr(c,j) ), col_plant_pdemand_vr(c,j)) 
                   end if
 
                end do
@@ -1674,7 +1677,8 @@ contains
 
          !!!  resolving N limitation vs. P limitation for decomposition
          !!!  update (1) actual immobilization for N and P (2) sminn_to_plant and sminp_to_plant
-         if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only().and. .not.cnallocate_carbon_only() )then
+         if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only()&
+              .and. .not.cnallocate_carbon_only() )then
 
             if (nu_com .eq. 'RD') then
                do j = 1, nlevdecomp
@@ -1698,11 +1702,13 @@ contains
 
                            actual_immob_p_vr(c,j) = potential_immob_p_vr(c,j) *fpi_vr(c,j)
 
-                           sminp_to_plant_vr(c,j) = min( max( 0._r8,(solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) ),col_plant_pdemand(c)*puptake_prof(c,j) )
+                           sminp_to_plant_vr(c,j) = min( max( 0._r8,(solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) ),&
+                                col_plant_pdemand(c)*puptake_prof(c,j) )
                         else
 
                            actual_immob_vr(c,j)=potential_immob_vr(c,j) * fpi_p_vr(c,j)
-                           sminn_to_plant_vr(c,j) = min( (sminn_vr(c,j)/dt) - actual_immob_vr(c,j),col_plant_ndemand(c)*nuptake_prof(c,j) )
+                           sminn_to_plant_vr(c,j) = min( (sminn_vr(c,j)/dt) - actual_immob_vr(c,j)&
+                                ,col_plant_ndemand(c)*nuptake_prof(c,j) )
                         endif
                      endif
                   enddo
@@ -1730,7 +1736,8 @@ contains
                         if( fpi_vr(c,j) <=fpi_p_vr(c,j) )then
 
                            actual_immob_p_vr(c,j) = potential_immob_p_vr(c,j) *fpi_vr(c,j)                        
-                           sminp_to_plant_vr(c,j) = min( max( 0._r8,(solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) ),col_plant_pdemand_vr(c,j) )
+                           sminp_to_plant_vr(c,j) = min( max( 0._r8,(solutionp_vr(c,j)/dt) - actual_immob_p_vr(c,j) )&
+                                ,col_plant_pdemand_vr(c,j) )
 
                         else
 
@@ -1849,7 +1856,8 @@ contains
                   !!! add phosphorus - X.YANG
                   if (residual_plant_pdemand(c)  >  0._r8 ) then
                      if (plimit(c,j) .eq. 0) then
-                        residual_sminp_vr(c,j) = max(solutionp_vr(c,j) - (actual_immob_p_vr(c,j) + sminp_to_plant_vr(c,j) ) * dt, 0._r8)
+                        residual_sminp_vr(c,j) = max(solutionp_vr(c,j) - (actual_immob_p_vr(c,j) + sminp_to_plant_vr(c,j) ) * dt,&
+                             0._r8)
                         residual_sminp(c) = residual_sminp(c) + residual_sminp_vr(c,j) * dzsoi_decomp(j)
                      else
                         residual_sminp_vr(c,j)  = 0._r8
@@ -1963,7 +1971,9 @@ contains
                   pnup_pfrootc(p) =  0.0_r8
                   if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
-                           pnup_pfrootc(p) = pnup_pfrootc(p) + plant_ndemand_vr_patch(p,j) / max(frootc(p) * froot_prof(p,j),1e-20_r8) * fpg_nh4_vr(c,j) / max(cn_scalar(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) * dzsoi_decomp(j)
+                           pnup_pfrootc(p) = pnup_pfrootc(p) + plant_ndemand_vr_patch(p,j) / max(frootc(p) * froot_prof(p,j)&
+                                ,1e-20_r8) * fpg_nh4_vr(c,j) / max(cn_scalar(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8)&
+                                * dzsoi_decomp(j)
                         end do
                   end if
                   pnup_pfrootc(p) =  pnup_pfrootc(p) / zisoi(nlevdecomp-1)
@@ -2013,11 +2023,13 @@ contains
                      ! plant growth demands, so these three demands compete for available
                      ! soil mineral NH4 resource.
                      nlimit_nh4(c,j) = 1
-                     if (sum_nh4_demand(c,j) > 0.0_r8 .and. smin_nh4_vr(c,j) > 0.0_r8 .and. sum_nh4_demand_scaled(c,j) > 0.0_r8) then
+                     if (sum_nh4_demand(c,j) > 0.0_r8 .and. smin_nh4_vr(c,j) > 0.0_r8 &
+                          .and. sum_nh4_demand_scaled(c,j) > 0.0_r8) then
                         actual_immob_nh4_vr(c,j) = min((smin_nh4_vr(c,j)/dt)*(potential_immob_vr(c,j)* &
                              compet_decomp_nh4 / sum_nh4_demand_scaled(c,j)), potential_immob_vr(c,j))
                         smin_nh4_to_plant_vr(c,j) = min((smin_nh4_vr(c,j)/dt)*(col_plant_ndemand(c)* &
-                             nuptake_prof(c,j)*compet_plant_nh4(p) / sum_nh4_demand_scaled(c,j)), col_plant_ndemand(c)*nuptake_prof(c,j))
+                             nuptake_prof(c,j)*compet_plant_nh4(p) / sum_nh4_demand_scaled(c,j))&
+                             , col_plant_ndemand(c)*nuptake_prof(c,j))
                         f_nit_vr(c,j) =  min((smin_nh4_vr(c,j)/dt)*(pot_f_nit_vr(c,j)*compet_nit / &
                              sum_nh4_demand_scaled(c,j)), pot_f_nit_vr(c,j))
                      else
@@ -2037,7 +2049,8 @@ contains
                   ! next compete for no3
                   sum_no3_demand(c,j) = (col_plant_ndemand(c)*nuptake_prof(c,j)-smin_nh4_to_plant_vr(c,j)) + &
                        (potential_immob_vr(c,j)-actual_immob_nh4_vr(c,j)) + pot_f_denit_vr(c,j)
-                  sum_no3_demand_scaled(c,j) = (col_plant_ndemand(c)*nuptake_prof(c,j)-smin_nh4_to_plant_vr(c,j))*compet_plant_no3(p) + &
+                  sum_no3_demand_scaled(c,j) = (col_plant_ndemand(c)*nuptake_prof(c,j)-smin_nh4_to_plant_vr(c,j))&
+                       *compet_plant_no3(p) + &
                        (potential_immob_vr(c,j)-actual_immob_nh4_vr(c,j))*compet_decomp_no3 + pot_f_denit_vr(c,j)*compet_denit
 
                   if (sum_no3_demand(c,j)*dt < smin_no3_vr(c,j)) then
@@ -2056,7 +2069,8 @@ contains
                      ! plant growth demands, so these three demands compete for available
                      ! soil mineral NO3 resource.
                      nlimit_no3(c,j) = 1
-                     if (sum_no3_demand(c,j) > 0.0_r8 .and. smin_no3_vr(c,j) > 0.0_r8 .and. sum_no3_demand_scaled(c,j) > 0.0_r8) then
+                     if (sum_no3_demand(c,j) > 0.0_r8 .and. smin_no3_vr(c,j) > 0.0_r8 &
+                          .and. sum_no3_demand_scaled(c,j) > 0.0_r8) then
                         actual_immob_no3_vr(c,j) = min((smin_no3_vr(c,j)/dt)*((potential_immob_vr(c,j)- &
                              actual_immob_nh4_vr(c,j))*compet_decomp_no3 / sum_no3_demand_scaled(c,j)), &
                              potential_immob_vr(c,j)-actual_immob_nh4_vr(c,j))
@@ -2129,7 +2143,8 @@ contains
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CN ratio flexibility
-                        cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
+                        cn_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafn(p) + leafn_storage(p) &
+                             + leafn_xfer(p), 1e-20_r8) - leafcn(ivt(p))*(1- cn_stoich_var)) / &
                             (leafcn(ivt(p)) - leafcn(ivt(p))*(1- cn_stoich_var)),0.0_r8),1.0_r8)
 
                         plant_nh4demand_vr_patch(p,j) = vmax_plant_nh4(ivt(p))* frootc(p) * froot_prof(p,j) * &
@@ -2173,7 +2188,8 @@ contains
                      ! plant growth demands, so these three demands compete for available
                      ! soil mineral NH4 resource.
                      nlimit_nh4(c,j) = 1
-                     if (sum_nh4_demand_vr(c,j) > 0.0_r8 .and. smin_nh4_vr(c,j) > 0.0_r8  .and. sum_nh4_demand_scaled(c,j) > 0.0_r8) then
+                     if (sum_nh4_demand_vr(c,j) > 0.0_r8 .and. smin_nh4_vr(c,j) > 0.0_r8  &
+                          .and. sum_nh4_demand_scaled(c,j) > 0.0_r8) then
                         actual_immob_nh4_vr(c,j) = min((smin_nh4_vr(c,j)/dt)*(potential_immob_vr(c,j)* &
                              compet_decomp_nh4 / sum_nh4_demand_scaled(c,j)), potential_immob_vr(c,j))
                         if (nu_com .eq. 'ECA') smin_nh4_to_plant_vr(c,j) = min((smin_nh4_vr(c,j)/dt)*(col_plant_nh4demand_vr(c,j)/ &
@@ -2224,7 +2240,8 @@ contains
                      ! plant growth demands, so these three demands compete for available
                      ! soil mineral NO3 resource.
                      nlimit_no3(c,j) = 1
-                     if (sum_no3_demand_vr(c,j) > 0.0_r8 .and. smin_no3_vr(c,j) > 0.0_r8 .and. sum_no3_demand_scaled(c,j) > 0.0_r8) then
+                     if (sum_no3_demand_vr(c,j) > 0.0_r8 .and. smin_no3_vr(c,j) > 0.0_r8 &
+                          .and. sum_no3_demand_scaled(c,j) > 0.0_r8) then
                         actual_immob_no3_vr(c,j) = min((smin_no3_vr(c,j)/dt)*((potential_immob_vr(c,j)- &
                              actual_immob_nh4_vr(c,j))*compet_decomp_no3 / sum_no3_demand_scaled(c,j)), &
                              potential_immob_vr(c,j)-actual_immob_nh4_vr(c,j))
@@ -2288,7 +2305,8 @@ contains
                      if ( smin_no3_to_plant_vr(c,j) + smin_nh4_to_plant_vr(c,j) < col_plant_ndemand_vr(c,j)) then
                         nlimit(c,j) = 1
                         supplement_to_sminn_vr(c,j) = supplement_to_sminn_vr(c,j) + &
-                             (col_plant_nh4demand_vr(c,j) + col_plant_no3demand_vr(c,j) - smin_no3_to_plant_vr(c,j)) - smin_nh4_to_plant_vr(c,j)
+                             (col_plant_nh4demand_vr(c,j) + col_plant_no3demand_vr(c,j) - smin_no3_to_plant_vr(c,j))&
+                             - smin_nh4_to_plant_vr(c,j)
                         ! update to new values that satisfy demand
                         smin_nh4_to_plant_vr(c,j) = col_plant_ndemand_vr(c,j) - col_plant_no3demand_vr(c,j)
                         sminn_to_plant_vr(c,j) = col_plant_ndemand_vr(c,j)
@@ -2421,7 +2439,8 @@ contains
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         ! scaling factor based on  CP ratio flexibility
-                        cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
+                        cp_scalar(p) = min(max(((leafc(p) + leafc_storage(p) + leafc_xfer(p))/max(leafp(p) + leafp_storage(p) &
+                             + leafp_xfer(p), 1e-20_r8) - leafcp(ivt(p))*(1- cp_stoich_var)) / &
                             (leafcp(ivt(p)) - leafcp(ivt(p))*(1- cp_stoich_var)),0.0_r8),1.0_r8)
 
                         plant_pdemand_vr_patch(p,j) = vmax_plant_p(ivt(p)) * frootc(p) * froot_prof(p,j) * &
@@ -2439,7 +2458,8 @@ contains
                      sum_pdemand_scaled(c,j) = col_plant_pdemand_vr(c,j) + potential_immob_p_vr(c,j)*compet_decomp_p + &
                           adsorb_to_labilep_vr(c,j)*compet_minsurf_p
                   else ! 'MIC' mode
-                     sum_pdemand_scaled(c,j) = potential_immob_p_vr(c,j)*compet_decomp_p + adsorb_to_labilep_vr(c,j)*compet_minsurf_p
+                     sum_pdemand_scaled(c,j) = potential_immob_p_vr(c,j)*compet_decomp_p + adsorb_to_labilep_vr(c,j)&
+                          *compet_minsurf_p
                   end if
 
                   if (sum_pdemand_vr(c,j)*dt < solutionp_vr(c,j)) then
@@ -2509,7 +2529,8 @@ contains
          end do  
  
 
-         if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only().and. .not.cnallocate_carbon_only() )then
+         if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only()&
+              .and. .not.cnallocate_carbon_only() )then
 
             if (nu_com .eq. 'RD') then 
                do j = 1, nlevdecomp
@@ -2518,21 +2539,24 @@ contains
                      if( fpi_vr(c,j) <=fpi_p_vr(c,j) )then ! more N limited
                         do k = 1, ndecomp_cascade_transitions
                            if (pmnf_decomp_cascade(c,j,k) > 0.0_r8 .and. pmpf_decomp_cascade(c,j,k) > 0.0_r8) then
-                              actual_immob_p_vr(c,j) = actual_immob_p_vr(c,j) - pmpf_decomp_cascade(c,j,k) *(fpi_p_vr(c,j)-fpi_vr(c,j))
+                              actual_immob_p_vr(c,j) = actual_immob_p_vr(c,j) - pmpf_decomp_cascade(c,j,k) &
+                                   *(fpi_p_vr(c,j)-fpi_vr(c,j))
                            end if
                          end do
                      else
                         if (fpi_nh4_vr(c,j) > fpi_p_vr(c,j)) then ! more P limited
                            do k = 1, ndecomp_cascade_transitions
                               if (pmnf_decomp_cascade(c,j,k) > 0.0_r8 .and. pmpf_decomp_cascade(c,j,k) > 0.0_r8) then
-                                 actual_immob_nh4_vr(c,j) = actual_immob_nh4_vr(c,j) - pmnf_decomp_cascade(c,j,k) * (fpi_nh4_vr(c,j) - fpi_p_vr(c,j))
+                                 actual_immob_nh4_vr(c,j) = actual_immob_nh4_vr(c,j) - pmnf_decomp_cascade(c,j,k)&
+                                      * (fpi_nh4_vr(c,j) - fpi_p_vr(c,j))
                                  actual_immob_no3_vr(c,j) = actual_immob_no3_vr(c,j) - pmnf_decomp_cascade(c,j,k) * fpi_no3_vr(c,j)
                               end if
                            end do
                         else
                            do k = 1, ndecomp_cascade_transitions
                               if (pmnf_decomp_cascade(c,j,k) > 0.0_r8 .and. pmpf_decomp_cascade(c,j,k) > 0.0_r8) then
-                                 actual_immob_no3_vr(c,j) = actual_immob_no3_vr(c,j) - pmnf_decomp_cascade(c,j,k) * (fpi_nh4_vr(c,j) + fpi_no3_vr(c,j) - fpi_p_vr(c,j) )
+                                 actual_immob_no3_vr(c,j) = actual_immob_no3_vr(c,j) - pmnf_decomp_cascade(c,j,k)&
+                                      * (fpi_nh4_vr(c,j) + fpi_no3_vr(c,j) - fpi_p_vr(c,j) )
                               end if
                            end do
                         end if
@@ -2553,25 +2577,31 @@ contains
                      if( fpi_vr(c,j) <=fpi_p_vr(c,j) )then ! more N limited
                         do k = 1, ndecomp_cascade_transitions
                            if (pmnf_decomp_cascade(c,j,k) > 0.0_r8 .and. pmpf_decomp_cascade(c,j,k) > 0.0_r8) then
-                              excess_immob_p_vr(c,j) = excess_immob_p_vr(c,j) + pmpf_decomp_cascade(c,j,k) *(fpi_p_vr(c,j)-fpi_vr(c,j))
-                              actual_immob_p_vr(c,j) = actual_immob_p_vr(c,j) - pmpf_decomp_cascade(c,j,k) *(fpi_p_vr(c,j)-fpi_vr(c,j))
+                              excess_immob_p_vr(c,j) = excess_immob_p_vr(c,j) + pmpf_decomp_cascade(c,j,k) *(fpi_p_vr(c,j)&
+                                   -fpi_vr(c,j))
+                              actual_immob_p_vr(c,j) = actual_immob_p_vr(c,j) - pmpf_decomp_cascade(c,j,k) *(fpi_p_vr(c,j)&
+                                   -fpi_vr(c,j))
                            end if
                          end do
                      else
                         if (fpi_nh4_vr(c,j) > fpi_p_vr(c,j)) then ! more P limited
                            do k = 1, ndecomp_cascade_transitions
                               if (pmnf_decomp_cascade(c,j,k) > 0.0_r8 .and. pmpf_decomp_cascade(c,j,k) > 0.0_r8) then
-                                 excess_immob_nh4_vr(c,j) = excess_immob_nh4_vr(c,j) + pmnf_decomp_cascade(c,j,k) * (fpi_nh4_vr(c,j) - fpi_p_vr(c,j))
+                                 excess_immob_nh4_vr(c,j) = excess_immob_nh4_vr(c,j) + pmnf_decomp_cascade(c,j,k) &
+                                      * (fpi_nh4_vr(c,j) - fpi_p_vr(c,j))
                                  excess_immob_no3_vr(c,j) = excess_immob_no3_vr(c,j) + pmnf_decomp_cascade(c,j,k) * fpi_no3_vr(c,j)
-                                 actual_immob_nh4_vr(c,j) = actual_immob_nh4_vr(c,j) - pmnf_decomp_cascade(c,j,k) * (fpi_nh4_vr(c,j) - fpi_p_vr(c,j))
+                                 actual_immob_nh4_vr(c,j) = actual_immob_nh4_vr(c,j) - pmnf_decomp_cascade(c,j,k) &
+                                      * (fpi_nh4_vr(c,j) - fpi_p_vr(c,j))
                                  actual_immob_no3_vr(c,j) = actual_immob_no3_vr(c,j) - pmnf_decomp_cascade(c,j,k) * fpi_no3_vr(c,j)
                               end if
                            end do
                         else
                            do k = 1, ndecomp_cascade_transitions
                               if (pmnf_decomp_cascade(c,j,k) > 0.0_r8 .and. pmpf_decomp_cascade(c,j,k) > 0.0_r8) then
-                                 excess_immob_no3_vr(c,j) = excess_immob_no3_vr(c,j) + pmnf_decomp_cascade(c,j,k) * (fpi_nh4_vr(c,j) + fpi_no3_vr(c,j) - fpi_p_vr(c,j) )
-                                 actual_immob_no3_vr(c,j) = actual_immob_no3_vr(c,j) - pmnf_decomp_cascade(c,j,k) * (fpi_nh4_vr(c,j) + fpi_no3_vr(c,j) - fpi_p_vr(c,j) )
+                                 excess_immob_no3_vr(c,j) = excess_immob_no3_vr(c,j) + pmnf_decomp_cascade(c,j,k)&
+                                      * (fpi_nh4_vr(c,j) + fpi_no3_vr(c,j) - fpi_p_vr(c,j) )
+                                 actual_immob_no3_vr(c,j) = actual_immob_no3_vr(c,j) - pmnf_decomp_cascade(c,j,k)&
+                                      * (fpi_nh4_vr(c,j) + fpi_no3_vr(c,j) - fpi_p_vr(c,j) )
                               end if
                            end do
                         end if
@@ -2584,8 +2614,10 @@ contains
                do j = 1, nlevdecomp  
                   do fc=1,num_soilc
                      c = filter_soilc(fc)
-                     smin_nh4_to_plant_vr(c,j) = min( smin_nh4_to_plant_vr(c,j)+excess_immob_nh4_vr(c,j),col_plant_nh4demand_vr(c,j) )
-                     smin_no3_to_plant_vr(c,j) = min( smin_no3_to_plant_vr(c,j)+excess_immob_no3_vr(c,j),col_plant_no3demand_vr(c,j) )
+                     smin_nh4_to_plant_vr(c,j) = min( smin_nh4_to_plant_vr(c,j)+excess_immob_nh4_vr(c,j)&
+                          ,col_plant_nh4demand_vr(c,j) )
+                     smin_no3_to_plant_vr(c,j) = min( smin_no3_to_plant_vr(c,j)+excess_immob_no3_vr(c,j)&
+                          ,col_plant_no3demand_vr(c,j) )
                      sminp_to_plant_vr(c,j) = min( sminp_to_plant_vr(c,j) + excess_immob_p_vr(c,j),col_plant_pdemand_vr(c,j))
                   end do
                end do
@@ -2666,9 +2698,12 @@ contains
                   end if
                   do p = col_pp%pfti(c), col_pp%pftf(c)
                      if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
-                        smin_nh4_to_plant_patch(p) = smin_nh4_to_plant_patch(p) + plant_nh4demand_vr_patch(p,j) * fpg_nh4_vr(c,j) *dzsoi_decomp(j)
-                        smin_no3_to_plant_patch(p) = smin_no3_to_plant_patch(p) + plant_no3demand_vr_patch(p,j) * fpg_no3_vr(c,j) *dzsoi_decomp(j)
-                        sminp_to_plant_patch(p) = sminp_to_plant_patch(p) + plant_pdemand_vr_patch(p,j) * fpg_p_vr(c,j) *dzsoi_decomp(j)
+                        smin_nh4_to_plant_patch(p) = smin_nh4_to_plant_patch(p) + plant_nh4demand_vr_patch(p,j)&
+                             * fpg_nh4_vr(c,j) *dzsoi_decomp(j)
+                        smin_no3_to_plant_patch(p) = smin_no3_to_plant_patch(p) + plant_no3demand_vr_patch(p,j)&
+                             * fpg_no3_vr(c,j) *dzsoi_decomp(j)
+                        sminp_to_plant_patch(p) = sminp_to_plant_patch(p) + plant_pdemand_vr_patch(p,j)&
+                             * fpg_p_vr(c,j) *dzsoi_decomp(j)
                      end if
                   end do
                end do
@@ -2746,8 +2781,12 @@ contains
                   pnup_pfrootc(p) =  0.0_r8
                   if (veg_pp%active(p).and. (veg_pp%itype(p) .ne. noveg)) then
                         do j = 1, nlevdecomp
-                           pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_nh4demand_vr_patch(p,j) / max(frootc(p) * froot_prof(p,j),1e-20_r8) * fpg_nh4_vr(c,j) / max(cn_scalar(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) * dzsoi_decomp(j)
-                           pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_no3demand_vr_patch(p,j) / max(frootc(p) * froot_prof(p,j),1e-20_r8) * fpg_no3_vr(c,j) / max(cn_scalar(p),1e-20_r8) / max(t_scalar(c,j),1e-20_r8) * dzsoi_decomp(j)
+                           pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_nh4demand_vr_patch(p,j) / max(frootc(p)&
+                                * froot_prof(p,j),1e-20_r8) * fpg_nh4_vr(c,j) / max(cn_scalar(p),1e-20_r8)&
+                                / max(t_scalar(c,j),1e-20_r8) * dzsoi_decomp(j)
+                           pnup_pfrootc(p) =  pnup_pfrootc(p) + plant_no3demand_vr_patch(p,j) / max(frootc(p) &
+                                * froot_prof(p,j),1e-20_r8) * fpg_no3_vr(c,j) / max(cn_scalar(p),1e-20_r8)&
+                                / max(t_scalar(c,j),1e-20_r8) * dzsoi_decomp(j)
                         end do
                   end if
                   pnup_pfrootc(p) =  pnup_pfrootc(p) / zisoi(nlevdecomp-1)
@@ -3034,7 +3073,8 @@ contains
             c = filter_soilc(fc)
             do p = col_pp%pfti(c), col_pp%pftf(c)
                if (veg_pp%active(p) .and. (veg_pp%itype(p) .ne. noveg)) then
-                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + (smin_nh4_to_plant_patch(p)+smin_no3_to_plant_patch(p))*veg_pp%wtcol(p)
+                  plant_n_uptake_flux(c) = plant_n_uptake_flux(c) + (smin_nh4_to_plant_patch(p)+smin_no3_to_plant_patch(p))&
+                       *veg_pp%wtcol(p)
                   plant_p_uptake_flux(c) = plant_p_uptake_flux(c) + sminp_to_plant_patch(p)*veg_pp%wtcol(p)
                end if
             end do
@@ -3138,7 +3178,8 @@ contains
              ! calculate the associated carbon allocation, and the excess
              ! carbon flux that must be accounted for through downregulation
 
-             if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only().and. .not.cnallocate_carbon_only() )then
+             if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only()&
+                  .and. .not.cnallocate_carbon_only() )then
                  if( plant_nalloc(p) * (c_allometry(p)/n_allometry(p)) < &
                      plant_palloc(p) * (c_allometry(p)/p_allometry(p)) )then
 
@@ -3466,9 +3507,11 @@ contains
                nlc_adjust_high = nlc_adjust_high + max((leafp(p)+leafp_storage(p) + leafp_xfer(p))* cpl *  (1 + cp_stoich_var ) - &
                   (leafc(p)+leafc_storage(p) + leafc_xfer(p)),0.0_r8)/dt ! upper bound of allocatable C to leaf account for offsetting current leaf N deficit
             else !  CNP mode
-               nlc_adjust_high = min(plant_nalloc(p) / n_allometry(p) * (1 + cn_stoich_var ) + max((leafn(p)+leafn_storage(p) + leafn_xfer(p))* cnl *  (1 + cn_stoich_var ) - &
+               nlc_adjust_high = min(plant_nalloc(p) / n_allometry(p) * (1 + cn_stoich_var ) + max((leafn(p)+leafn_storage(p) &
+                    + leafn_xfer(p))* cnl *  (1 + cn_stoich_var ) - &
                   (leafc(p)+leafc_storage(p) + leafc_xfer(p)),0.0_r8)/dt, &
-                  plant_palloc(p) / p_allometry(p) * (1 + cp_stoich_var ) + max((leafp(p)+leafp_storage(p) + leafp_xfer(p))* cpl *  (1 + cp_stoich_var ) - &
+                  plant_palloc(p) / p_allometry(p) * (1 + cp_stoich_var ) + max((leafp(p)+leafp_storage(p) + leafp_xfer(p))* &
+                  cpl *  (1 + cp_stoich_var ) - &
                   (leafc(p)+leafc_storage(p) + leafc_xfer(p)),0.0_r8)/dt)
             end if
 
@@ -3666,9 +3709,11 @@ contains
              if (cnallocate_carbon_only() .or. cnallocate_carbonphosphorus_only()) then
 
                  supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) + cpool_to_leafc(p) / cnl - npool_to_leafn(p)
-                 supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) + cpool_to_leafc_storage(p) / cnl -  npool_to_leafn_storage(p)
+                 supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) + cpool_to_leafc_storage(p)&
+                      / cnl -  npool_to_leafn_storage(p)
                  supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) + cpool_to_frootc(p) / cnfr - npool_to_frootn(p)
-                 supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) + cpool_to_frootc_storage(p) / cnfr- npool_to_frootn_storage(p)
+                 supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) + cpool_to_frootc_storage(p)&
+                      / cnfr- npool_to_frootn_storage(p)
                  
                  npool_to_leafn(p) = cpool_to_leafc(p) / cnl
                  npool_to_leafn_storage(p) =  cpool_to_leafc_storage(p) / cnl
@@ -3676,14 +3721,22 @@ contains
                  npool_to_frootn_storage(p) = cpool_to_frootc_storage(p) / cnfr
                  
                  if (woody(ivt(p)) == 1._r8) then
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc(p) / cnlw - npool_to_livestemn(p) 
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc_storage(p) / cnlw - npool_to_livestemn_storage(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc(p) / cndw - npool_to_deadstemn(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc_storage(p) / cndw - npool_to_deadstemn_storage(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc(p) / cnlw - npool_to_livecrootn(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc_storage(p) / cnlw - npool_to_livecrootn_storage(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc(p) / cndw - npool_to_deadcrootn(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc_storage(p) / cndw - npool_to_deadcrootn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc(p)&
+                          / cnlw - npool_to_livestemn(p) 
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc_storage(p)&
+                          / cnlw - npool_to_livestemn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc(p) / cndw &
+                          - npool_to_deadstemn(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc_storage(p) / cndw &
+                          - npool_to_deadstemn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc(p) / cnlw &
+                          - npool_to_livecrootn(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc_storage(p) / cnlw &
+                          - npool_to_livecrootn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc(p) / cndw&
+                          - npool_to_deadcrootn(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc_storage(p)&
+                          / cndw - npool_to_deadcrootn_storage(p)
                      
                      npool_to_livestemn(p)  =  cpool_to_livestemc(p) / cnlw
                      npool_to_livestemn_storage(p) =  cpool_to_livestemc_storage(p) / cnlw
@@ -3696,16 +3749,25 @@ contains
                  end if
                  if (ivt(p) >= npcropmin) then ! skip 2 generic crops
                      cng = graincn(ivt(p))
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc(p) / cnlw - npool_to_livestemn(p) 
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc_storage(p) / cnlw - npool_to_livestemn_storage(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc(p) / cndw - npool_to_deadstemn(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc_storage(p) / cndw - npool_to_deadstemn_storage(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc(p) / cnlw - npool_to_livecrootn(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc_storage(p) / cnlw - npool_to_livecrootn_storage(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc(p) / cndw - npool_to_deadcrootn(p)
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc_storage(p) / cndw - npool_to_deadcrootn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc(p)&
+                          / cnlw - npool_to_livestemn(p) 
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livestemc_storage(p)&
+                          / cnlw - npool_to_livestemn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc(p)&
+                          / cndw - npool_to_deadstemn(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadstemc_storage(p)&
+                          / cndw - npool_to_deadstemn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc(p)&
+                          / cnlw - npool_to_livecrootn(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_livecrootc_storage(p)&
+                          / cnlw - npool_to_livecrootn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc(p)&
+                          / cndw - npool_to_deadcrootn(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_deadcrootc_storage(p)&
+                          / cndw - npool_to_deadcrootn_storage(p)
                      supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_grainc(p) / cng - npool_to_grainn(p) 
-                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_grainc_storage(p) / cng - npool_to_grainn_storage(p)
+                     supplement_to_sminn_vr(c,1) = supplement_to_sminn_vr(c,1) +  cpool_to_grainc_storage(p)&
+                          / cng - npool_to_grainn_storage(p)
                      
                      npool_to_livestemn(p) = cpool_to_livestemc(p) / cnlw
                      npool_to_livestemn_storage(p) = cpool_to_livestemc_storage(p) / cnlw
@@ -3721,10 +3783,14 @@ contains
                  
              else if (cnallocate_carbon_only() .or. cnallocate_carbonnitrogen_only()) then
 
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_leafc(p) / cpl - ppool_to_leafp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_leafc_storage(p) / cpl - ppool_to_leafp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_frootc(p) / cpfr - ppool_to_frootp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_frootc_storage(p) / cpfr - ppool_to_frootp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_leafc(p) / cpl &
+                          - ppool_to_leafp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_leafc_storage(p) / cpl&
+                          - ppool_to_leafp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_frootc(p) / cpfr&
+                          - ppool_to_frootp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_frootc_storage(p) / cpfr &
+                          - ppool_to_frootp_storage(p),0._r8)
                      
                      ppool_to_leafp(p) = cpool_to_leafc(p) / cpl
                      ppool_to_leafp_storage(p) =  cpool_to_leafc_storage(p) / cpl
@@ -3732,14 +3798,22 @@ contains
                      ppool_to_frootp_storage(p) = cpool_to_frootc_storage(p) / cpfr
                  
                  if (woody(ivt(p)) == 1._r8) then
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livestemc(p) / cplw - ppool_to_livestemp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livestemc_storage(p) / cplw - ppool_to_livestemp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadstemc(p) /cpdw - ppool_to_deadstemp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadstemc_storage(p)  / cpdw- ppool_to_deadstemp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livecrootc(p) / cplw - ppool_to_livecrootp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livecrootc_storage(p) / cplw - ppool_to_livecrootp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadcrootc(p) / cpdw - ppool_to_deadcrootp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadcrootc_storage(p) / cpdw - ppool_to_deadcrootp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livestemc(p) / cplw - ppool_to_livestemp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livestemc_storage(p) / cplw - ppool_to_livestemp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadstemc(p) /cpdw - ppool_to_deadstemp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadstemc_storage(p)  / cpdw- ppool_to_deadstemp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livecrootc(p) / cplw - ppool_to_livecrootp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livecrootc_storage(p) / cplw - ppool_to_livecrootp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadcrootc(p) / cpdw - ppool_to_deadcrootp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadcrootc_storage(p) / cpdw - ppool_to_deadcrootp_storage(p),0._r8)
                      
                      ppool_to_livestemp(p) = cpool_to_livestemc(p) / cplw
                      ppool_to_livestemp_storage(p) = cpool_to_livestemc_storage(p) / cplw
@@ -3752,16 +3826,26 @@ contains
                  end if
                  if (ivt(p) >= npcropmin) then ! skip 2 generic crops
                      cpg = graincp(ivt(p))
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livestemc(p) / cplw - ppool_to_livestemp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livestemc_storage(p) / cplw - ppool_to_livestemp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadstemc(p) /cpdw - ppool_to_deadstemp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadstemc_storage(p)  / cpdw- ppool_to_deadstemp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livecrootc(p) / cplw - ppool_to_livecrootp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_livecrootc_storage(p) / cplw - ppool_to_livecrootp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadcrootc(p) / cpdw - ppool_to_deadcrootp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_deadcrootc_storage(p) / cpdw - ppool_to_deadcrootp_storage(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_grainc(p) / cpg - ppool_to_grainp(p),0._r8)
-                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  max(cpool_to_grainc_storage(p) / cpg - ppool_to_grainp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livestemc(p) / cplw - ppool_to_livestemp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livestemc_storage(p) / cplw - ppool_to_livestemp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadstemc(p) /cpdw - ppool_to_deadstemp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadstemc_storage(p)  / cpdw- ppool_to_deadstemp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livecrootc(p) / cplw - ppool_to_livecrootp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_livecrootc_storage(p) / cplw - ppool_to_livecrootp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadcrootc(p) / cpdw - ppool_to_deadcrootp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_deadcrootc_storage(p) / cpdw - ppool_to_deadcrootp_storage(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_grainc(p) / cpg - ppool_to_grainp(p),0._r8)
+                     supplement_to_sminp_vr(c,1) = supplement_to_sminp_vr(c,1) +  &
+                          max(cpool_to_grainc_storage(p) / cpg - ppool_to_grainp_storage(p),0._r8)
                      
                      ppool_to_livestemp(p) = cpool_to_livestemc(p) / cplw
                      ppool_to_livestemp_storage(p) = cpool_to_livestemc_storage(p) / cplw
@@ -3792,7 +3876,8 @@ contains
 
         if( .not. use_nitrif_denitrif) then
 
-        if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only().and. .not.cnallocate_carbon_only() )then
+        if( .not.cnallocate_carbonphosphorus_only().and. .not.cnallocate_carbonnitrogen_only()&
+             .and. .not.cnallocate_carbon_only() )then
 
           temp_sminn_to_plant(bounds%begc:bounds%endc) = sminn_to_plant(bounds%begc:bounds%endc)
           temp_sminp_to_plant(bounds%begc:bounds%endc) = sminp_to_plant(bounds%begc:bounds%endc)

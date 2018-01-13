@@ -670,7 +670,8 @@ contains
                 end if
             end do
             do l = 1,ndecomp_pools
-                biochem_pmin_ppools_vr_col(c,j,l) = max(min(biochem_pmin_vr(c,j) * sop_profile(l), decomp_ppools_vr_col(c,j,l)),0._r8)
+                biochem_pmin_ppools_vr_col(c,j,l) = max(min(biochem_pmin_vr(c,j) * sop_profile(l), decomp_ppools_vr_col(c,j,l)) &
+                     ,0._r8)
             end do
         end do
     end do
