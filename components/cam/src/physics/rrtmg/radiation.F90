@@ -348,7 +348,7 @@ end function radiation_nextsw_cday
 
     integer :: dtime, id, lchnk, ncol, icol, ilchnk, astat, iseed
     !-----------------------------------------------------------------------
-
+    
     call rrtmg_state_init()
 
     call init_rad_data() ! initialize output fields for offline driver
@@ -435,7 +435,7 @@ end function radiation_nextsw_cday
           enddo
        enddo
     end if
-    
+
 
     ! Shortwave radiation
 
