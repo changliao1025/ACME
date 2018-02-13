@@ -21,6 +21,8 @@ parser.add_option("--csmdir", dest="csmdir", default='../../../../..', \
                   help = "base CESM directory (default = ../../..)")
 parser.add_option("--compiler", dest="compiler", default = 'gnu', \
                   help = "compiler to use (pgi*, gnu)")
+parser.add_option("--debug", dest="debug", default=False, \
+                 action="store_true", help='Use debug queue and options')
 parser.add_option("--ilambvars", dest="ilambvars", default=False, \
                  action="store_true", help="Write special outputs for diagnostics")
 parser.add_option("--hist_mfilt_trans", dest="hist_mfilt", default="1", \
@@ -334,6 +336,8 @@ if (options.C13):
     basecmd = basecmd+' --C13 '
 if (options.C14):
     basecmd = basecmd+' --C14 '
+if (options.debug):
+    basecmd = basecmd+' --debug'
 if (options.nofire):
     basecmd = basecmd+' --nofire'
 if (options.harvmod):
@@ -534,15 +538,20 @@ for c in cases:
             input = open(caseroot+'/'+c+'/case.run')
         for s in input:
             if ("perl" in s or "python" in s):
+                timestr=str(int(float(options.walltime)))+':'+str(int((float(options.walltime)- \
+                            int(float(options.walltime)))*60))+':00'
                 output.write("#!/bin/csh -f\n")
                 if (mysubmit_type == 'qsub'):
-                    output.write('#PBS -l walltime='+str(options.walltime)+':00:00\n')
+                    output.write('#PBS -l walltime='+timestr+'\n')
                     if ('cades' in options.machine):
                         output.write('#PBS -W x=FLAGS:ADVRES:system.5872\n')  #TEMPORARY
                 else:
-                    output.write('#SBATCH --time='+str(options.walltime)+':00:00\n')
+                    output.write('#SBATCH --time='+timestr+'\n')
                     if ('cori' in options.machine or 'edison' in options.machine):
-                        output.write('#SBATCH --partition=regular\n')
+                         if (options.debug):
+                             output.write('#SBATCH --partition=debug\n')
+                         else:
+                             output.write('#SBATCH --partition=regular\n')
             elif ("#!" in s or "#PBS" in s or "#SBATCH" in s):
                 output.write(s.replace('cades-ccsi','cades-user'))
         input.close()
@@ -566,6 +575,7 @@ for c in cases:
             output.write('module load python_numpy/1.9.2\n')
             output.write('module load python_scipy/0.15.1\n')
         if ('cori' in options.machine or 'edison' in options.machine):
+            output.write('source $MODULESHOME/init/csh\n')
             output.write('module unload python\n')
             output.write('module unload scipy\n')
             output.write('module unload numpy\n')

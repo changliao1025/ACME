@@ -759,7 +759,7 @@ if (options.np == 1):
     os.system('./xmlchange -file env_mach_pes.xml -id NTHRDS_WAV -val 1')
 if (int(options.np) > 1):
     os.system('./xmlchange -file env_mach_pes.xml -id MAX_TASKS_PER_NODE -val '+str(ppn))
-    os.system('./xmlchange -file env_mach_pes.xml -id PES_PER_NODE -val '+str(ppn))
+    #os.system('./xmlchange -file env_mach_pes.xml -id PES_PER_NODE -val '+str(ppn))
 
 if (int(options.ninst) > 1):
     os.system('./xmlchange -file env_mach_pes.xml -id ' \
@@ -1347,6 +1347,13 @@ if (options.ensemble_file != '' or int(options.mc_ensemble) != -1):
             output_run.write('module load python_numpy/1.9.2\n')
             output_run.write('module load python_scipy/0.15.1\n')
             output_run.write('module load python_mpi4py/2.0.0\n')
+        if ('cori' in options.machine or 'edison' in options.machine):
+            output_run.write('module unload python\n')
+            output_run.write('module unload scipy\n')
+            output_run.write('module unload numpy\n')
+            output_run.write('module load python/2.7-anaconda\n')
+            output_run.write('module load nco\n')
+
         output_run.write('cd '+csmdir+'/components/clm/tools/clm4_5/pointclm/\n')
         cnp = 'True'
         if (options.cn_only or options.c_only):
@@ -1359,12 +1366,12 @@ if (options.ensemble_file != '' or int(options.mc_ensemble) != -1):
                +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
                options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list+' --cnp '+cnp + \
                ' --site '+options.site
-        elif (('titan' in options.machine or 'eos' in options.machine or 'edison' in options.machine) and int(options.ninst) == 1):
+        elif (('titan' in options.machine or 'eos' in options.machine) and int(options.ninst) == 1):
             cmd = 'aprun -n '+str(np_total)+' python manage_ensemble.py ' \
                +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
                options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list+' --cnp '+cnp + \
                ' --site '+options.site
-        elif ('cori' in options.machine):
+        elif ('cori' in options.machine or 'edison' in options.machine):
             cmd = 'srun -n '+str(np_total)+' python manage_ensemble.py ' \
                +'--case '+casename+' --runroot '+runroot+' --n_ensemble '+str(nsamples)+' --ens_file '+ \
                options.ensemble_file+' --exeroot '+exeroot+' --parm_list '+options.parm_list+' --cnp '+cnp + \

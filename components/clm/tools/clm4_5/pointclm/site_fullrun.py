@@ -603,11 +603,12 @@ for row in AFdatareader:
                     output.write('module load python_scipy/0.15.1\n')
                     output.write('module load python_mpi4py/2.0.0\n')
                 if (options.machine == 'edison' or 'cori' in options.machine):
-                     output.write('module unload python\n')
-                     output.write('module unload scipy\n')
-                     output.write('module unload numpy\n')
-                     output.write('module load python/2.7-anaconda\n')
-                     output.write('module load nco\n')     
+                    output.write('source $MODULESHOME/init/csh\n')
+                    output.write('module unload python\n')
+                    output.write('module unload scipy\n')
+                    output.write('module unload numpy\n')
+                    output.write('module load python/2.7-anaconda\n')
+                    output.write('module load nco\n')     
             else:
                 output = open('./temp/'+c+'_group'+str(groupnum)+'.pbs','a')   
                 

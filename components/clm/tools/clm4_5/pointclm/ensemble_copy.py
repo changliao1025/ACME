@@ -44,7 +44,7 @@ casename = options.casename
 for s in myinput:
    pdata = s.split()
    parm_names.append(pdata[0])
-   if (len(pdata) < 4):
+   if (len(pdata) == 3):
      parm_indices.append(-1)
    else:
      parm_indices.append(int(pdata[1]))
@@ -171,7 +171,7 @@ for p in parm_names:
          myfile = pftfile
       param = nffun.getvar(myfile, p)
       if (parm_indices[pnum] > 0):
-         param[parm_indices[pnum]-1] = parm_values[pnum]
+         param[parm_indices[pnum]] = parm_values[pnum]
       elif (parm_indices[pnum] == 0):
          param = parm_values[pnum]
       else:
