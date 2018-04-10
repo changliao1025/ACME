@@ -391,17 +391,17 @@ contains
     Tctl%DLevelR       = DLevelR
 
 #ifdef INCLUDE_INUND
-    Tctl%OPT_inund = OPT_inund
-    Tctl%OPT_trueDW = OPT_trueDW
-    Tctl%OPT_calcNr = OPT_calcNr
-    Tctl%nr_max = nr_max
-    Tctl%nr_min = nr_min
-    Tctl%nr_uniform = nr_uniform
-    Tctl%rdepth_max = rdepth_max
-    Tctl%rdepth_min = rdepth_min
-    Tctl%rwidth_max = rwidth_max
-    Tctl%rwidth_min = rwidth_min
-    Tctl%rslp_assume = rslp_assume
+    Tctl%OPT_inund = OPT_inund     !
+    Tctl%OPT_trueDW = OPT_trueDW   ! diffusion wave method
+    Tctl%OPT_calcNr = OPT_calcNr   ! method to calculate channel Manning
+    Tctl%nr_max = nr_max           ! Max Manning coefficient
+    Tctl%nr_min = nr_min           ! Min Manning coefficient
+    Tctl%nr_uniform = nr_uniform   ! uniform Manning for all channels
+    Tctl%rdepth_max = rdepth_max   ! Max channel depth
+    Tctl%rdepth_min = rdepth_min   ! Min channel depth
+    Tctl%rwidth_max = rwidth_max   ! Max channel width
+    Tctl%rwidth_min = rwidth_min   ! Min channel width
+    Tctl%rslp_assume = rslp_assume ! assumed riverbed slope if input slope<=0
     Tctl%minL_tribRouting = minL_tribRouting
     Tctl%OPT_elevProf = OPT_elevProf
     Tctl%npt_elevProf = npt_elevProf
@@ -769,25 +769,31 @@ contains
     nrof = 0
     nout = 0
     nmos = 0
+    ! over all MOSART grid cells
     do nr=1,rtmlon*rtmlat
+       ! if ocean outlet from land
        if (gmask(nr) == 3) then
           nout = nout + 1
           nbas = nbas + 1
           nmos = nmos + 1
           nrof = nrof + 1
+       ! if ocean
        elseif (gmask(nr) == 2) then
           nbas = nbas + 1
           nrof = nrof + 1
+       ! if land
        elseif (gmask(nr) == 1) then
           nmos = nmos + 1
           nrof = nrof + 1
        endif
     enddo
+
+    ! N.Sun
     if (masterproc) then
-       write(iulog,*) 'Number of outlet basins = ',nout
-       write(iulog,*) 'Number of total  basins = ',nbas
-       write(iulog,*) 'Number of mosart points = ',nmos
-       write(iulog,*) 'Number of runoff points = ',nrof
+       write(iulog,*) 'Number of outlet basins (if ocean) = ',nout
+       write(iulog,*) 'Number of total  basins (either ocean or land-ocean outlet) = ',nbas
+       write(iulog,*) 'Number of mosart points (either land or land-ocean outlet) = ',nmos
+       write(iulog,*) 'Number of runoff points (all grids)= ',nrof
     endif
 
     !-------------------------------------------------------
@@ -1585,7 +1591,9 @@ contains
        ! If inundation scheme is turned on :
        if ( Tctl%OPT_inund .eq. 1 ) then
          !TRunoff%wf_ini(:) = rtmCTL%wf(:, 1)
+         ! Innudation floodplain water volume (m3)
          TRunoff%wf_ini(:) = rtmCTL%inundwf(:)
+         ! Inundation floodplain water depth (m)
          TRunoff%hf_ini(:) = rtmCTL%inundhf(:)
        end if
 #endif
@@ -2001,7 +2009,7 @@ contains
 
 #ifdef INCLUDE_WRM
        if (wrmflag) then
-          StorWater%supply = 0._r8
+          StorWater%supply = 0._r8             !initial supply at the start of Tian Feb 2018
           nt = 1
           do nr = rtmCTL%begr,rtmCTL%endr
              budget_terms(bv_dsupp_i,nt) = budget_terms(bv_dsupp_i,nt) + StorWater%supply(nr)
@@ -2020,6 +2028,7 @@ contains
        TRunoff%qsur(nr,nt) = rtmCTL%qsur(nr,nt)
        TRunoff%qsub(nr,nt) = rtmCTL%qsub(nr,nt)
        TRunoff%qgwl(nr,nt) = rtmCTL%qgwl(nr,nt)
+       TRunoff%qdem(nr,nt) = rtmCTL%qdem(nr,nt) !added by Yuna 1/29/2018
     enddo
     enddo
   
@@ -2194,7 +2203,6 @@ contains
           write(iulog,'(2a,2g20.12,2i12)') trim(subname),' MOSART delt update from/to',delt_save,delt,nsub_save,nsub
        end if
     endif
-
     nsub_save = nsub
     delt_save = delt
     Tctl%DeltaT = delt
@@ -2209,6 +2217,7 @@ contains
        TRunoff%qsur(nr,nt) = TRunoff%qsur(nr,nt) / rtmCTL%area(nr)
        TRunoff%qsub(nr,nt) = TRunoff%qsub(nr,nt) / rtmCTL%area(nr)
        TRunoff%qgwl(nr,nt) = TRunoff%qgwl(nr,nt) / rtmCTL%area(nr)
+       TRunoff%qdem(nr,nt) = TRunoff%qdem(nr,nt) / rtmCTL%area(nr) !m3 to m added by Yuna 1/29/2018
     enddo
     enddo
 
@@ -2236,6 +2245,8 @@ contains
           call t_stopf('mosartr_inund_sim')
        else
           call t_startf('mosartr_euler')
+          ! debug (N. Sun)
+          write(iulog,*) 'clm-mosart subT: (call Euler) ns=', ns
           call Euler()
           call t_stopf('mosartr_euler')
        endif
@@ -2481,6 +2492,10 @@ contains
           nt = 1
           do nr = rtmCTL%begr,rtmCTL%endr
              budget_terms(bv_dsupp_f,nt) = budget_terms(bv_dsupp_f,nt) + StorWater%supply(nr)
+             ! convert supply from m3 per coupling delta (3hrs)  to mm/s (N. Sun)
+             if (StorWater%supply(nr) > 0) then            
+               StorWater%supply(nr) = StorWater%supply(nr)/delt_coupling               
+             endif
           enddo
           do idam = 1,ctlSubwWRM%LocalNumDam
              budget_terms(bv_dstor_f,nt) = budget_terms(bv_dstor_f,nt) + StorWater%storage(idam)
@@ -2617,8 +2632,8 @@ contains
           budget_volume =  budget_terms(bv_volt_f,nt) - budget_terms(bv_volt_i,nt) + &
                            budget_terms(bv_dstor_f,nt) - budget_terms(bv_dstor_i,nt)             ! (Volume change during a coupling period. --Inund.)
           budget_input  =  budget_terms(br_qsur,nt) + budget_terms(br_qsub,nt) + &
-                           budget_terms(br_qgwl,nt) + budget_terms(br_qdto,nt) + &
-                           budget_terms(br_qdem,nt)
+                           budget_terms(br_qgwl,nt) + budget_terms(br_qdto,nt) !+ &
+                           ! budget_terms(br_qdem,nt) commented out by Tian 3/13/2018
           budget_output =  budget_terms(br_ocnout,nt) + budget_terms(br_flood,nt) + &
                            budget_terms(br_direct,nt) + &
                            budget_terms(bv_dsupp_f,nt) - budget_terms(bv_dsupp_i,nt)
@@ -2647,8 +2662,8 @@ contains
             budget_volume = (budget_global(bv_volt_f,nt) - budget_global(bv_volt_i,nt) + &
                              budget_global(bv_dstor_f,nt) - budget_global(bv_dstor_i,nt))   !(Global volume change during a coupling period. --Inund.)
             budget_input  = (budget_global(br_qsur,nt) + budget_global(br_qsub,nt) + &
-                             budget_global(br_qgwl,nt) + budget_global(br_qdto,nt) + &
-                             budget_global(br_qdem,nt))
+                             budget_global(br_qgwl,nt) + budget_global(br_qdto,nt)) !+ &
+                             ! budget_global(br_qdem,nt)) commented out by Tian 3/13/2018
             budget_output = (budget_global(br_ocnout,nt) + budget_global(br_flood,nt) + &
                              budget_global(br_direct,nt) + &
                              budget_global(bv_dsupp_f,nt) - budget_global(bv_dsupp_i,nt))
@@ -2697,14 +2712,15 @@ contains
             write(iulog,'(2a,i4,f22.6  )') trim(subname),'   input subsurf = ',nt,budget_global(br_qsub,nt)
             write(iulog,'(2a,i4,f22.6  )') trim(subname),'   input gwl     = ',nt,budget_global(br_qgwl,nt)
             write(iulog,'(2a,i4,f22.6  )') trim(subname),'   input dto     = ',nt,budget_global(br_qdto,nt)
-            write(iulog,'(2a,i4,f22.6  )') trim(subname),'   input demand  = ',nt,budget_global(br_qdem,nt)
+            write(iulog,'(2a,i4,f22.6  )') trim(subname),'   input demand -not included-  = ',nt,budget_global(br_qdem,nt)
             write(iulog,'(2a,i4,f22.6  )') trim(subname),' * input total   = ',nt,budget_input
           if (output_all_budget_terms) then
             write(iulog,'(2a,i4,f22.6,a)') trim(subname),' x input check   = ',nt,budget_input - &
                                                                              (budget_global(br_qsur,nt)+budget_global(br_qsub,nt)+ &
-                                                                              budget_global(br_qgwl,nt)+budget_global(br_qdto,nt)+ &
-                                                                              budget_global(br_qdem,nt)), &
-                                                                             ' (should be zero)'
+                                                                              budget_global(br_qgwl,nt)+budget_global(br_qdto,nt)), &
+                     ' (should be zero)'
+                     ! + budget_global(br_qdem,nt)), commented out by Tian 3/13/2018
+                                                                             
           endif
             write(iulog,'(2a)') trim(subname),'----------------'
             write(iulog,'(2a,i4,f22.6  )') trim(subname),'   output runoff = ',nt,budget_global(br_ocnout,nt)   !(Outflows to oceans. --Inund.)
@@ -3574,7 +3590,10 @@ contains
 
      allocate (TRunoff%qgwl(begr:endr,nt_rtm))
      TRunoff%qgwl = 0._r8
-
+      
+     allocate (TRunoff%qdem(begr:endr,nt_rtm)) !added by Yuna 1/29/2018
+     TRunoff%qdem = 0._r8
+  
      allocate (TRunoff%ehout(begr:endr,nt_rtm))
      TRunoff%ehout = 0._r8
 

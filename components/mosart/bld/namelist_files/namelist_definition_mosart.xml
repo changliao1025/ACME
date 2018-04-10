@@ -317,6 +317,14 @@ Total Demand Flag, 0 = false
 Ground Water Flag, 0 = false
 </entry>
 
+<entry id="ExternalDemandFlag" 
+       type="integer" 
+       category="wrm"
+       group="wrm_inparm" 
+       valid_values="" >
+External Demand Flag, 0 = false
+</entry>
+
 <!-- ========================================================================================  -->
 <!-- Inundation Namelist -->
 <!-- ========================================================================================  -->

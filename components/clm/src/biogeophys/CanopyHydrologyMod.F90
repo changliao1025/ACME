@@ -113,6 +113,8 @@ contains
      use landunit_varcon    , only : istcrop, istice, istwet, istsoil, istice_mec 
      use clm_varctl         , only : subgridflag
      use clm_varpar         , only : nlevsoi,nlevsno
+      use atm2lndType        , only: atm2lnd_type !added by Yuna 1/29/2018
+      use domainMod          , only : ldomain !added by Yuna 1/29/2018
      use clm_time_manager   , only : get_step_size
      use subgridAveMod      , only : p2c
      !
@@ -219,7 +221,9 @@ contains
           qflx_prec_intr       => waterflux_vars%qflx_prec_intr_patch      , & ! Output: [real(r8) (:)   ]  interception of precipitation [mm/s]    
           qflx_prec_grnd       => waterflux_vars%qflx_prec_grnd_patch      , & ! Output: [real(r8) (:)   ]  water onto ground including canopy runoff [kg/(m2 s)]
           qflx_rain_grnd       => waterflux_vars%qflx_rain_grnd_patch      , & ! Output: [real(r8) (:)   ]  rain on ground after interception (mm H2O/s) [+]
-          qflx_irrig           => waterflux_vars%qflx_irrig_patch            & ! Output: [real(r8) (:)   ]  irrigation amount (mm/s)                
+    
+          qflx_irrig           => waterflux_vars%qflx_irrig_patch          , & ! Output: [real(r8) (:)   ]  irrigation amount (mm/s)      !commented by Tian 2/27/2018
+          qflx_real_irrig      => waterflux_vars%qflx_real_irrig_patch       & ! Output: [real(r8) (:)   ]  actual irrigation amount (mm/s)      !added by Tian 2/27/2018   
           )
 
        ! Compute time step
@@ -331,13 +335,20 @@ contains
 
           ! Add irrigation water directly onto ground (bypassing canopy interception)
           ! Note that it's still possible that (some of) this irrigation water will runoff (as runoff is computed later)
-          qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + qflx_irrig(p)
+   ! two way coupling --Yuna 1/29/2018     
+   qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) !added by Yuna 1/29/2018
+   qflx_real_irrig(p) = min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+   !one way coupling --Yuna 1/29/2018           
+   !qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) 
+   
+   !no coupling --Yuna 1/29/2018
+   !qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + qflx_irrig(p)
 
           ! Done irrigation
 
           qflx_prec_grnd(p) = qflx_prec_grnd_snow(p) + qflx_prec_grnd_rain(p)
 
-          if (do_capsnow(c)) then
+          if (do_capsnow(c)) then          
              qflx_snwcp_liq(p) = qflx_prec_grnd_rain(p)
              qflx_snwcp_ice(p) = qflx_prec_grnd_snow(p)
 

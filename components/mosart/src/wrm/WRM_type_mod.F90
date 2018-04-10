@@ -31,6 +31,7 @@ MODULE WRM_type_mod
      integer :: ReturnFlowFlag   ! Flag for return flow, this flag indicates withdrwals and consumptive uses
      integer :: TotalDemandFlag  ! Flag to indicate if the demand includes irrigation and non irrigation demands
      integer :: GroundWaterFlag  ! Flag to know if demand needs to be separated with GW-SW
+     integer :: ExternalDemandFlag  ! Flag to decide where does the demand come from, external files or ELM
 
      character(len=256) :: paraFile         ! the path of the parameter files
      character(len=256) :: demandPath       ! the path of the water demand data

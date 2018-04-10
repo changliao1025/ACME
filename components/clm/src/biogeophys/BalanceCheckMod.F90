@@ -88,16 +88,16 @@ contains
             h2ocan_col(bounds%begc:bounds%endc))
       
       if (use_var_soil_thick) then
-	 do f = 1, num_hydrologyc
+  do f = 1, num_hydrologyc
             c = filter_hydrologyc(f)
-      	    wa(c) = 0._r8                ! Made 0 for variable soil thickness
-	 end do
+           wa(c) = 0._r8                ! Made 0 for variable soil thickness
+  end do
       else
-	 do f = 1, num_hydrologyc
+  do f = 1, num_hydrologyc
             c = filter_hydrologyc(f)
             if (zwt(c) <= zi(c,nlevsoi)) then
                wa(c) = 5000._r8
-	    end if
+     end if
          end do
       end if
       
@@ -320,13 +320,21 @@ contains
         !          - qflx_evap_tot(c) - qflx_surf(c)  - qflx_h2osfc_surf(c) &
         !          - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c)) * dtime
 
-
-             errh2o(c) = endwb(c) - begwb(c) &
-                  - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + qflx_irrig(c) &
-                  - qflx_evap_tot(c) - qflx_surf(c)  - qflx_h2osfc_surf(c) - qflx_irrig(c) * ldomain%f_grd(g) &
+          !two way coupling Yuna 1/29/2018
+            errh2o(c) = endwb(c) - begwb(c) &
+                  - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + min(ldomain%f_surf(g)*qflx_irrig(c),atm2lnd_vars%supply_grc(g)) &
+                 - qflx_evap_tot(c) - qflx_surf(c)  - qflx_h2osfc_surf(c) &  
                   - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c) &
-                  - qflx_lateral(c) ) * dtime
-             dwb(c) = (endwb(c)-begwb(c))/dtime
+                   - qflx_lateral(c) ) * dtime 
+
+          !one way coupling Yuna 1/30/2018
+          !   errh2o(c) = endwb(c) - begwb(c) &
+          !        - (forc_rain_col(c) + forc_snow_col(c)  + qflx_floodc(c) + ldomain%f_surf(g)*qflx_irrig(c) &
+          !        - qflx_evap_tot(c) - qflx_surf(c)  - qflx_h2osfc_surf(c) &  
+          !        - qflx_qrgwl(c) - qflx_drain(c) - qflx_drain_perched(c) - qflx_snwcp_ice(c) &
+          !        - qflx_lateral(c) ) * dtime
+
+     dwb(c) = (endwb(c)-begwb(c))/dtime
 
           else
 

@@ -172,20 +172,24 @@ MODULE MOSARTinund_PreProcs_MOD
     !TUnit%e_eprof_std = (/ 0.0_r8, 15.0_r8, 35.0_r8, 60.0_r8, 90.0_r8, 125.0_r8, 165.0_r8, 205.0_r8, 245.0_r8, 285.0_r8, 325.0_r8, 10000.0_r8 /)     
 
     ! 1 -- use real elevation profile data :
-    if ( Tctl%OPT_elevProf .eq. 1 ) then      
-      
+    if ( Tctl%OPT_elevProf .eq. 1 ) then           
       do iu = rtmCTL%begr, rtmCTL%endr
         !if ( TUnit%mask( iu ) .gt. 0 ) then
         if ( rtmCTL%mask(iu) .eq. 1 .or. rtmCTL%mask(iu) .eq. 3 ) then   ! 1--Land; 3--Basin outlet (downstream is ocean).
-          do k = 1, 11
+          ! absolute elevation 
+    do k = 1, 11
+      ! real elevation (should read from input - not provided yet) (commented by Tian)
             TUnit%e_eprof( iu, k ) = TUnit%e_eprof_in2( k, iu )
           end do
+    
           !TUnit%e_eprof(iu,12) = TUnit%e_eprof_std(12)      ! The last point is hypothetical.
+    ! e_eprof_std (hypothetical elevation) is now defined in RunoffMod.F90
           TUnit%e_eprof(iu,12) = Tctl%e_eprof_std(12)        ! The last point is hypothetical.
         end if
       enddo
       
-    ! 2 -- use the hypothetical elevation profile :
+    ! 2 -- use the hypothetical elevation profile : 
+ ! Using the hypothetical for now ??? (commented by Tian)
     elseif ( Tctl%OPT_elevProf .eq. 2 ) then    
       
       do iu = rtmCTL%begr, rtmCTL%endr

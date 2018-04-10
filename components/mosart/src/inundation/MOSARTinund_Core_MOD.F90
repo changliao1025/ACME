@@ -18,9 +18,22 @@ MODULE MOSARTinund_Core_MOD
   use RunoffMod, only: rtmCTL, Tctl, TUnit, TRunoff, &
       SMatP_upstrm, avsrc_upstrm, avdst_upstrm, SMatP_dnstrm
   use MOSARTinund_PreProcs_MOD, only: con1Em3
-  use RtmVar, only: barrier_timers, iulog
+  use RtmVar, only: barrier_timers, iulog, wrmflag
   use RtmSpmd, only: mpicom_rof
   use mct_mod
+  
+#ifdef INCLUDE_WRM
+  use WRM_type_mod  , only : ctlSubwWRM, WRMUnit, StorWater
+  use WRM_modules   , only : irrigationExtractionSubNetwork, &
+                             irrigationExtractionMainChannel, &
+                             Regulation, ExtractionRegulatedFlow
+  use WRM_returnflow, only : insert_returnflow_channel, &
+                             insert_returnflow_soilcolumn, &
+                             estimate_returnflow_deficit
+  use WRM_subw_io_mod, only : WRM_readDemand, WRM_computeRelease
+  use MOSART_physics_mod, only : updatestate_hillslope, updatestate_subnetwork, &
+                                 updatestate_mainchannel
+#endif
   
   implicit none
   private
@@ -37,12 +50,33 @@ MODULE MOSARTinund_Core_MOD
     ! ... ... ...
     
     implicit none
-    integer :: ier, nr, cnt
+    integer :: ier, nr, cnt, iunit
     type(mct_aVect) :: avsrc,avdst
     
     ! Hillslope routing computation :
     call inund_hillslopeRouting ( )
-    
+
+! moved inside the subnetwork channel routing 
+! WMRM works on wt (storage) consistent with the subroutine Euler (which does subcycling)
+! innundation works on etin (N. Sun)
+! note: etin is surface and subsurface inflow from hillslope (m3/s) 
+#ifdef INCLUDE_WRM
+    if (wrmflag) then
+       ! extraction from available surface runoff 
+       if (ctlSubwWRM%ExtractionFlag > 0) then
+          do iunit=rtmCTL%begr,rtmCTL%endr
+             if (TUnit%mask(iunit) > 0) then
+                call irrigationExtractionSubNetwork(iunit, Tctl%DeltaT )
+               ! update channel state variables, e.g. water depth (yt),
+               ! wetted perimeter (pt), cross-sectionala area (mt), 
+               ! hydraulic radius (rt), used in subnetwork routing (N. Sun)
+                call UpdateState_subnetwork(iunit,1) !update liquid state only
+             endif
+          enddo
+       end if
+    endif
+#endif
+
     ! Subnetwork (tributary channel) routing computation :
     call inund_subnetworkRouting ( )
 
@@ -51,7 +85,8 @@ MODULE MOSARTinund_Core_MOD
     TRunoff%erlat_avg = TRunoff%erlat_avg - TRunoff%etout            ! Note: outflow is negative for TRunoff%etout .
 
     if ( Tctl%OPT_inund .eq. 1 ) then
-      ! Channel -- floodplain exchange computation :      
+      ! Channel -- floodplain exchange computation
+      ! update    
       call ChnlFPexchg ( )
     else
       TRunoff%wr_exchg( : ) = TRunoff%wr( :, 1 )
@@ -142,22 +177,24 @@ MODULE MOSARTinund_Core_MOD
       !if ( TUnit%mask( iu ) .gt. 0 ) then
       if ( rtmCTL%mask(iu) .eq. 1 .or. rtmCTL%mask(iu) .eq. 3 ) then   ! 1--Land; 3--Basin outlet (downstream is ocean).
         
-        ! Estimate flow velocity with Manning equation :
+        ! Estimate flow velocity with Manning equation (m/s):
         hsV = ManningEq ( TUnit%hslp( iu ), TUnit%nh( iu ), TRunoff%wh( iu, 1 ) )     
 
         ! Outflow per unit area (outflow = V * A; Negative values means outward flows; Unit: m/s).
+        ! Gxr is drainage density within the cell, [1/m]
         TRunoff%ehout( iu, 1 ) = - hsV * TRunoff%wh( iu, 1 ) * TUnit%Gxr( iu )        
 
         ! If outflow is too high and water volume becomes negative :
         if ( TRunoff%ehout(iu, 1) .lt. 0._r8 .and. TRunoff%wh(iu, 1) + (TRunoff%qsur(iu, 1) + TRunoff%ehout(iu, 1)) * Tctl%DeltaT .lt. 0._r8 ) then 
           ! All water volume flows away :
           TRunoff%ehout(iu, 1) = - TRunoff%qsur(iu, 1) - TRunoff%wh(iu, 1) / Tctl%DeltaT    
+         ! change of water storage (m)
           TRunoff%dwh(iu, 1) = - TRunoff%wh(iu, 1)
         else  
-          TRunoff%dwh(iu, 1) = (TRunoff%qsur(iu, 1) + TRunoff%ehout(iu, 1)) * Tctl%DeltaT   ! Added " * Tctl%DeltaT ".
+          TRunoff%dwh(iu, 1) = (TRunoff%qsur(iu, 1) + TRunoff%ehout(iu, 1)) * Tctl%DeltaT   ! unit: m
         end if
         
-        ! Update water volume over hillslopes :
+        ! Update water stoage (unit: m) over hillslopes :
         TRunoff%wh(iu, 1) = TRunoff%wh(iu, 1) + TRunoff%dwh(iu, 1)    
 
         ! Total flow rate (surface + subsurface) from hillslopes to subnetwork (tributary channels) within one computation unit  (m^3/s) :
@@ -208,7 +245,9 @@ MODULE MOSARTinund_Core_MOD
     
     return
   end function ManningEq
+  
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine inund_subnetworkRouting ( )
     ! DESCRIPTION: Subnetwork (tributary channel) routing computation.
     
@@ -225,6 +264,8 @@ MODULE MOSARTinund_Core_MOD
     !$OMP PARALLEL FIRSTPRIVATE ( iu, hydrR )
     !$OMP DO SCHEDULE ( GUIDED )
     do iu = rtmCTL%begr, rtmCTL%endr
+
+      write(iulog,*) ' In Inund, etin (N. Sun) = ', iu, TRunoff%etin(iu, 1)
       
       !if ( TUnit%mask( iu ) .gt. 0 ) then
       if ( rtmCTL%mask(iu) .eq. 1 .or. rtmCTL%mask(iu) .eq. 3 ) then   ! 1--Land; 3--Basin outlet (downstream is ocean).
@@ -235,13 +276,16 @@ MODULE MOSARTinund_Core_MOD
           TRunoff%dwt(iu, 1) = 0._r8
         else
           ! Calculate hydraulic radius ( hydraulic radius = A / P ) :
-          hydrR = ( TUnit%twidth( iu ) * TRunoff%yt( iu, 1 ) ) / ( TUnit%twidth( iu ) + 2._r8 * TRunoff%yt( iu, 1 ) )
+          ! yt (depth) is updated in WM water extraction (N. Sun)
+          hydrR = ( TUnit%twidth( iu ) * TRunoff%yt( iu, 1 ) ) / ( TUnit%twidth( iu ) + 2._r8 * TRunoff%yt( iu, 1 ) ) ! By  X.Luo
+          write(iulog,*) ' hydrR (pre, post) should be equal ', iu, hydrR, TRunoff%rr(iu,1)
+          hydrR = TRunoff%rr(iu,1) ! By N. Sun 
 
           ! Estimate flow velocity with Manning equation :
           TRunoff%vt(iu, 1) = ManningEq (TUnit%tslp(iu), TUnit%nt(iu), hydrR)                 
 
           ! Calculate flow rate ( = flow velocity * wet cross-sectional area; Note: outflow is negative ) :
-          TRunoff%etout(iu, 1) = - TRunoff%vt(iu, 1) * TUnit%twidth( iu ) * TRunoff%yt( iu, 1 )     
+          TRunoff%etout(iu, 1) = - TRunoff%vt(iu, 1) * TUnit%twidth(iu) * TRunoff%yt(iu, 1)     
           
           ! If outflow rate is too high and water volume becomes negative :
           if ( TRunoff%wt(iu, 1) + (TRunoff%etin(iu, 1) + TRunoff%etout(iu, 1)) * Tctl%DeltaT .lt. 0._r8 ) then 
@@ -249,11 +293,12 @@ MODULE MOSARTinund_Core_MOD
             ! All water volume flows away :
             TRunoff%etout(iu, 1) = - TRunoff%etin(iu, 1) - TRunoff%wt(iu, 1) / Tctl%DeltaT        
 
-            ! Calculate flow velocity ( = flow rate / wet cross-sectional area ; Note: TRunoff%yt must be non-zero because the initial TRunoff%etout (based on TRunoff%yt) is not zero) :
+            ! Calculate flow velocity ( = flow rate / wet cross-sectional area ; 
+            ! Note: TRunoff%yt must be non-zero because the initial TRunoff%etout (based on TRunoff%yt) is not zero) :
             TRunoff%vt(iu, 1) = - TRunoff%etout(iu, 1) / TUnit%twidth( iu ) / TRunoff%yt( iu, 1 )
             TRunoff%dwt(iu, 1) = - TRunoff%wt(iu, 1)
           else  
-            TRunoff%dwt(iu, 1) = (TRunoff%etin(iu, 1) + TRunoff%etout(iu, 1)) * Tctl%DeltaT   ! Add " * Tctl%DeltaT ".
+            TRunoff%dwt(iu, 1) = (TRunoff%etin(iu, 1) + TRunoff%etout(iu, 1)) * Tctl%DeltaT   
           end if
         end if
     
@@ -273,6 +318,7 @@ MODULE MOSARTinund_Core_MOD
     !$OMP END PARALLEL  
     
   end subroutine inund_subnetworkRouting
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine ChnlFPexchg ( )
     ! DESCRIPTION: Calculate water exchange between the main channel and floodplains (assuming instantaneous exchange).
@@ -311,23 +357,25 @@ MODULE MOSARTinund_Core_MOD
         ! If the channel water level is higher than the floodplain water level, or on the contrary :
         if (TRunoff%yr( iu, 1 ) - TUnit%rdepth(iu) .gt. TRunoff%hf_ini(iu) + con1Em3 .or. &
             (TRunoff%hf_ini(iu) .gt. con1Em3 .and. TRunoff%hf_ini(iu) .gt. TRunoff%yr( iu, 1 ) - TUnit%rdepth(iu) + con1Em3)) then
-          wr_rcd = TRunoff%wr( iu, 1 )
+          wr_rcd = TRunoff%wr( iu, 1 ) ! channel storage
 
+          ! surplus water volume over (bankfull) channel capacity (m3) (N. Sun)
           ! Calculate w_over ( = channel storage + floodplain storage - channel storage capacity ) :
           w_over = TRunoff%wr( iu, 1 ) + TRunoff%wf_ini( iu ) - TUnit%wr_bf( iu ) 
         
           ! if ( wr + wf > wr_bf ) :
           if (w_over .gt. 0._r8) then
             ! ---------------------------------  
-            ! Calculate: (1) Flooded fraction in the computation unit (including channel area); (2) The difference between final water level and banktop elevation :
+            ! Calculate: (1) Flooded fraction in the computation unit (including channel area); 
+            !            (2) The difference between final water level and banktop elevation :
             ! --------------------------------- 
-            do j = 2, TUnit%npt_eprof3(iu) - 1    ! Note: j starts from 2 .
+            do j = 2, TUnit%npt_eprof3(iu) - 1    ! elevation profile points; Note: j starts from 2 .
               if (TUnit%s_eprof3(iu, j) < w_over .and. w_over <= TUnit%s_eprof3(iu, j+1)) then
                 ! Water volume above the level of point " j " :
                 d_s = w_over - TUnit%s_eprof3(iu, j)
 
                 ! --------------------------------- 
-                ! The relationship between d_s and d_e is expressed as a quadratic equation: p3*(d_e)^2 + q3*(d_e) - (d_s) = 0.  
+                ! The relationship between water storage (d_s) and water volume (d_e) is expressed as a quadratic equation: p3*(d_e)^2 + q3*(d_e) - (d_s) = 0.  
                 ! TUnit%p3( :, : ) is the coefficient "p3" of this quadratic equation (unit: m). 
                 ! --------------------------------- 
                 if (TUnit%p3(iu, j) > 0._r8) then
