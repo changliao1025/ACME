@@ -74,12 +74,12 @@ MODULE WRM_subw_IO_mod
      type(mct_sMat)    :: sMat                 ! temporary sparse matrix, needed for sMatP
      character(len=256):: nlfilename_wrm
 
-     character(len=350) :: paraFile, demandPath
+     character(len=350) :: paraFile, demandPath, DemandVariableName
      integer :: ExtractionFlag, ExtractionMainChannelFlag, RegulationFlag, &
         ReturnFlowFlag, TotalDemandFlag, GroundWaterFlag, ExternalDemandFlag
 
      namelist /wrm_inparm/  &
-        paraFile, demandPath, &
+        paraFile, demandPath, DemandVariableName, &
         ExtractionFlag, ExtractionMainChannelFlag, RegulationFlag, &
         ReturnFlowFlag, TotalDemandFlag, GroundWaterFlag, ExternalDemandFlag
 
@@ -123,6 +123,7 @@ MODULE WRM_subw_IO_mod
 
      call mpi_bcast(paraFile   ,len(paraFile)  , MPI_CHARACTER, 0, mpicom_rof, ier)
      call mpi_bcast(demandPath ,len(demandPath), MPI_CHARACTER, 0, mpicom_rof, ier)
+     call mpi_bcast(DemandVariableName ,len(DemandVariableName), MPI_CHARACTER, 0, mpicom_rof, ier)
      call mpi_bcast(ExtractionFlag,   1, MPI_INTEGER, 0, mpicom_rof, ier)
      call mpi_bcast(ExtractionMainChannelFlag, 1, MPI_INTEGER, 0, mpicom_rof, ier)
      call mpi_bcast(RegulationFlag,   1, MPI_INTEGER, 0, mpicom_rof, ier)
@@ -140,10 +141,12 @@ MODULE WRM_subw_IO_mod
      ctlSubwWRM%TotalDemandFlag = TotalDemandFlag
      ctlSubwWRM%GroundWaterFlag = GroundWaterFlag
      ctlSubwWRM%ExternalDemandFlag = ExternalDemandFlag
+     ctlSubwWRM%DemandVariableName = DemandVariableName
 
      if (masterproc) then
         write(iulog,*) subname," paraFile        = ",trim(ctlSubwWRM%paraFile)
         write(iulog,*) subname," demandPath      = ",trim(ctlSubwWRM%demandPath)
+        write(iulog,*) subname," DemandVariableName = ",trim(ctlSubwWRM%DemandVariableName)
         write(iulog,*) subname," ExtractionFlag  = ",ctlSubwWRM%ExtractionFlag
         write(iulog,*) subname," ExtractionMainChannelFlag = ",ctlSubwWRM%ExtractionMainChannelFlag
         write(iulog,*) subname," RegulationFlag  = ",ctlSubwWRM%RegulationFlag
@@ -873,7 +876,7 @@ MODULE WRM_subw_IO_mod
         write(iulog,*) subname, ' reading ',trim(fname)
 
         call ncd_pio_openfile(ncid, trim(fname), 0)
-        ier = pio_inq_varid (ncid, name='nonirri_demand', vardesc=vardesc)  !! need to be consistent with the NC file, Tian Apr 2018
+        ier = pio_inq_varid (ncid, name=ctlSubwWRM%DemandVariableName, vardesc=vardesc)  !! need to be consistent with the NC file, Tian Apr 2018
         call pio_read_darray(ncid, vardesc, iodesc_dbl_grd2grd , StorWater%demand0, ier)
         call ncd_pio_closefile(ncid)
 

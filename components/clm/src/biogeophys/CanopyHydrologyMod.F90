@@ -15,7 +15,7 @@ module CanopyHydrologyMod
   use shr_sys_mod     , only : shr_sys_flush
   use decompMod       , only : bounds_type
   use abortutils      , only : endrun
-  use clm_varctl      , only : iulog
+  use clm_varctl      , only : iulog, TwoWayCouplingFlag  ! Tian Apr. 2018 true is 2 way, else one way
   use LandunitType    , only : lun_pp                
   use atm2lndType     , only : atm2lnd_type
   use AerosolType     , only : aerosol_type
@@ -113,8 +113,8 @@ contains
      use landunit_varcon    , only : istcrop, istice, istwet, istsoil, istice_mec 
      use clm_varctl         , only : subgridflag
      use clm_varpar         , only : nlevsoi,nlevsno
-      use atm2lndType        , only: atm2lnd_type !added by Yuna 1/29/2018
-      use domainMod          , only : ldomain !added by Yuna 1/29/2018
+     use atm2lndType        , only: atm2lnd_type !added by Yuna 1/29/2018
+     use domainMod          , only : ldomain !added by Yuna 1/29/2018
      use clm_time_manager   , only : get_step_size
      use subgridAveMod      , only : p2c
      !
@@ -223,7 +223,8 @@ contains
           qflx_rain_grnd       => waterflux_vars%qflx_rain_grnd_patch      , & ! Output: [real(r8) (:)   ]  rain on ground after interception (mm H2O/s) [+]
     
           qflx_irrig           => waterflux_vars%qflx_irrig_patch          , & ! Output: [real(r8) (:)   ]  irrigation amount (mm/s)      !commented by Tian 2/27/2018
-          qflx_real_irrig      => waterflux_vars%qflx_real_irrig_patch       & ! Output: [real(r8) (:)   ]  actual irrigation amount (mm/s)      !added by Tian 2/27/2018   
+          qflx_real_irrig      => waterflux_vars%qflx_real_irrig_patch     , & ! Output: [real(r8) (:)   ]  actual irrigation amount (mm/s)      !added by Tian 2/27/2018   
+		  qflx_supply          => waterflux_vars%qflx_supply_patch           & ! Output: [real(r8) (:)   ]  irrigation supply (mm/s)      !added by Tian 4/11/2018 
           )
 
        ! Compute time step
@@ -335,20 +336,26 @@ contains
 
           ! Add irrigation water directly onto ground (bypassing canopy interception)
           ! Note that it's still possible that (some of) this irrigation water will runoff (as runoff is computed later)
-   ! two way coupling --Yuna 1/29/2018     
-   qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) !added by Yuna 1/29/2018
-   qflx_real_irrig(p) = min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
-   !one way coupling --Yuna 1/29/2018           
-   !qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) 
+          
+          if (TwoWayCouplingFlag) then ! Tian Apr. 2018 true is 2 way, else one way       
+             qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) 
+             qflx_real_irrig(p) = min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+			 qflx_supply(p) = atm2lnd_vars%supply_grc(g) !added by Tian Apr 2018
+			
+          else
+             qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) 
+             qflx_real_irrig(p) = ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+			 qflx_supply(p) = 0._r8 !added by Tian Apr 2018
+          end if
    
-   !no coupling --Yuna 1/29/2018
-   !qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + qflx_irrig(p)
+          !no coupling
+          !qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + qflx_irrig(p)
 
           ! Done irrigation
 
           qflx_prec_grnd(p) = qflx_prec_grnd_snow(p) + qflx_prec_grnd_rain(p)
 
-          if (do_capsnow(c)) then          
+          if (do_capsnow(c)) then
              qflx_snwcp_liq(p) = qflx_prec_grnd_rain(p)
              qflx_snwcp_ice(p) = qflx_prec_grnd_snow(p)
 

@@ -48,6 +48,7 @@ for the CLM data in the CESM distribution
 <TotalDemandFlag>1</TotalDemandFlag>
 <GroundWaterFlag>0</GroundWaterFlag>
 <ExternalDemandFlag>0</ExternalDemandFlag>
+<DemandVariableName>cons_total</DemandVariableName>
 
 <!-- inund -->
 <OPT_inund>1</OPT_inund>

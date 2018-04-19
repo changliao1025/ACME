@@ -41,6 +41,7 @@ MODULE WRM_type_mod
      integer, pointer :: out_ID(:)          ! the indices of the outlet subbasins whether the stations are located
      character(len=80), pointer :: out_name(:)  ! the name of the outlets  
      character(len=80) :: curOutlet         ! the name of the current outlet
+     character(len=256) :: DemandVariableName      ! the variable from external demand file
   end type WRMcontrol_subw
   
      ! --- Topographic and geometric properties, applicable for both grid- and subbasin-based representations

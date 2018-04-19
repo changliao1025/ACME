@@ -163,9 +163,9 @@ contains
     domain%xCell    = nan
     domain%yCell    = nan
     domain%area     = nan
-    domain%firrig     = 0.7_r8
-    !domain%f_surf     = 1.0_r8     commented out for surf and grnd
-    !domain%f_grd     = 0.0_r8      commented out
+    domain%firrig     = 0.7_r8    
+    domain%f_surf     = 1.0_r8     !commented out for surf and grnd
+    domain%f_grd     = 0.0_r8      !commented out
 
 
     domain%set      = set
