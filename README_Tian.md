@@ -1,4 +1,8 @@
-## Changes made (APR 2018)
+## Changes made (APR 19 2018)
+- Add "DemandVariableName" into mosart user defined namelist to specify which variable to read for external water demand
+- In "clm_varctl" add "TwoWayCouplingFlag" to control one way or two way coupling between ELM and MOSART, default is one way.
+
+## Changes made (APR 11 2018)
 
 - Add external demand import option for RMGLB05 compset
   - to use it, active the "externaldemandflag" and "demandpath" in the `user_nl_mosart` file
