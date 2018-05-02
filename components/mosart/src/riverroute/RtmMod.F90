@@ -1595,6 +1595,8 @@ contains
          TRunoff%wf_ini(:) = rtmCTL%inundwf(:)
          ! Inundation floodplain water depth (m)
          TRunoff%hf_ini(:) = rtmCTL%inundhf(:)
+         ! Inundation floodplain fraction      ! added by Tian
+         TRunoff%ff_ini(:) = rtmCTL%inundff(:)
        end if
 #endif
 
@@ -1649,6 +1651,7 @@ contains
           if ( Tctl%OPT_inund .eq. 1 ) then
             rtmCTL%inundwf(nr) = 0._r8
             rtmCTL%inundhf(nr) = 0._r8
+            rtmCTL%inundff(nr) = 0._r8   ! added by Tian Dec 2017
           end if
 
         else
@@ -1660,6 +1663,7 @@ contains
           if ( Tctl%OPT_inund .eq. 1 ) then
             rtmCTL%inundwf(nr) = 0._r8
             rtmCTL%inundhf(nr) = 0._r8
+            rtmCTL%inundff(nr) = 0._r8   ! added by Tian Dec 2017
           end if
 
         end if
@@ -1679,6 +1683,7 @@ contains
       if ( Tctl%OPT_inund .eq. 1 ) then
         TRunoff%wf_ini(:) = rtmCTL%inundwf(:)
         TRunoff%hf_ini(:) = rtmCTL%inundhf(:)
+        TRunoff%ff_ini(:) = rtmCTL%inundff(:)  ! added by Tian Dec 2017
       end if
 
     end if
@@ -2412,6 +2417,7 @@ contains
       !rtmCTL%wf(:, 1) = TRunoff%wf_ini(:)
       rtmCTL%inundwf(:) = TRunoff%wf_ini(:)
       rtmCTL%inundhf(:) = TRunoff%hf_ini(:)
+      rtmCTL%inundff(:) = TRunoff%ff_ini(:)  ! added by Tian
     end if
 
 #endif
@@ -3397,7 +3403,7 @@ contains
         ! Check input parameters :
         !----------------------------------   
 
-        do n = rtmCtl%begr, rtmCTL%endr
+       do n = rtmCtl%begr, rtmCTL%endr
           !if ( Tunit%mask(n) .eq. 1 .or. Tunit%mask(n) .eq. 2 ) then    ! 1-- Land; 2-- Basin outlet.
           if ( rtmCTL%mask(n) .eq. 1 .or. rtmCTL%mask(n) .eq. 3 ) then   ! 1--Land; 3--Basin outlet (downstream is ocean).
 
@@ -3408,6 +3414,7 @@ contains
 
             if ( TUnit%areaTotal(n) .le. 0._r8 ) then
               write( iulog, * ) trim( subname ) // ' ERROR: TUnit%areaTotal(n) <= 0 for n=', n
+
               call shr_sys_abort( trim( subname ) // ' ERROR: TUnit%areaTotal(n) <= 0 ')
             end if
 
@@ -3418,6 +3425,7 @@ contains
 
             if ( TUnit%hslp(n) .LT. 0._r8 ) then
               write( iulog, * ) trim( subname ) // ' ERROR: TUnit%hslp(n) < 0 for n=', n
+
               call shr_sys_abort( trim( subname ) // ' ERROR: TUnit%hslp(n) < 0 ')
             end if
 
@@ -3428,6 +3436,7 @@ contains
 
             if ( TUnit%tslp(n) .LT. 0._r8 ) then
               write( iulog, * ) trim( subname ) // ' ERROR: TUnit%tslp(n) < 0 for n=', n
+
               call shr_sys_abort( trim( subname ) // ' ERROR: TUnit%tslp(n) < 0 ')
             end if
 
@@ -3448,6 +3457,7 @@ contains
 
             if ( TUnit%rslp(n) .LT. 0._r8 ) then
               write( iulog, * ) trim( subname ) // ' ERROR: TUnit%rslp(n) < 0 for n=', n
+
               call shr_sys_abort( trim( subname ) // ' ERROR: TUnit%rslp(n) < 0 ')
             end if
 
@@ -3526,7 +3536,63 @@ contains
 
           allocate( TUnit%e_eprof_in2( 11, begr:endr ) )    
           ! --------------------------------- 
-          ! Need code to read in real elevation profiles (assign elevation values to TUnit%e_eprof_in2( :, : ) ).
+          ! Need code to read in real elevation profiles (assign elevation values to TUnit%e_eprof_in2( :, : ) ). Tian Apr. 2018
+		   
+     ier = pio_inq_varid(ncid, name='ele0', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(1,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele0 ',minval(TUnit%e_eprof_in2(1,:)),maxval(TUnit%e_eprof_in2(1,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele1', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(2,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele1 ',minval(TUnit%e_eprof_in2(2,:)),maxval(TUnit%e_eprof_in2(2,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele2', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(3,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele2 ',minval(TUnit%e_eprof_in2(3,:)),maxval(TUnit%e_eprof_in2(3,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele3', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(4,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele3 ',minval(TUnit%e_eprof_in2(4,:)),maxval(TUnit%e_eprof_in2(4,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele4', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(5,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele4 ',minval(TUnit%e_eprof_in2(5,:)),maxval(TUnit%e_eprof_in2(5,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele5', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(6,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele5 ',minval(TUnit%e_eprof_in2(6,:)),maxval(TUnit%e_eprof_in2(6,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele6', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(7,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele6 ',minval(TUnit%e_eprof_in2(7,:)),maxval(TUnit%e_eprof_in2(7,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele7', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(8,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele7 ',minval(TUnit%e_eprof_in2(8,:)),maxval(TUnit%e_eprof_in2(8,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele8', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(9,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele8 ',minval(TUnit%e_eprof_in2(9,:)),maxval(TUnit%e_eprof_in2(9,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele9', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(10,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele9 ',minval(TUnit%e_eprof_in2(10,:)),maxval(TUnit%e_eprof_in2(10,:))
+     call shr_sys_flush(iulog)
+     
+     ier = pio_inq_varid(ncid, name='ele10', vardesc=vardesc)
+     call pio_read_darray(ncid, vardesc, iodesc_dbl, TUnit%e_eprof_in2(11,:), ier)
+     if (masterproc) write(iulog,FORMR) trim(subname),' read ele10 ',minval(TUnit%e_eprof_in2(11,:)),maxval(TUnit%e_eprof_in2(11,:))
+     call shr_sys_flush(iulog)
+     
           ! --------------------------------- 
 
           allocate (TUnit%a_eprof(begr:endr,12))
@@ -3737,6 +3803,9 @@ contains
 
            allocate (TRunoff%hf_ini(begr:endr))
            TRunoff%hf_ini = 0.0_r8
+           
+           allocate (TRunoff%ff_ini(begr:endr))
+           TRunoff%ff_ini = 0.0_r8 ! added by Tian Dec 2017
 
            allocate (TRunoff%se_rf(begr:endr))
            TRunoff%se_rf = 0.0_r8

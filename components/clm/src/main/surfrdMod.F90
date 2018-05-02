@@ -648,7 +648,8 @@ contains
     call domain_clean(surfdata_domain)
 
     ! Obtain special landunit info
-
+    
+    !!!! comment out to use surface water only option
     call surfrd_special(begg, endg, ncid, ldomain%ns)
 
     call ncd_io(ncid=ncid, varname='FIRRIG', flag='read', data=ldomain%firrig, &
@@ -662,7 +663,8 @@ contains
     call ncd_io(ncid=ncid, varname='FGRD', flag='read', data=ldomain%f_grd, &
          dim1name=grlnd, readvar=readvar)
     if (.not. readvar) call endrun( trim(subname)//' ERROR: FGRD NOT on surfdata file' )
-
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
     ! Obtain vegetated landunit info
 
     call surfrd_veg_all(begg, endg, ncid, ldomain%ns)

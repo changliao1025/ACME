@@ -164,7 +164,7 @@ contains
          ptr_rof=StorWater%supply, default='active')
 
       call RtmHistAddfld (fname='WRM_DEMAND', units='m3/s',  &
-         avgflag='A', long_name='WRM new demand: same as deficit ', &
+         avgflag='A', long_name='WRM new demand after supply: same as deficit ', &
          ptr_rof=StorWater%demand, default='active')
 
       call RtmHistAddfld (fname='WRM_DEMAND0', units='m3/s',  &
@@ -189,6 +189,11 @@ contains
       call RtmHistAddfld (fname='FLOODPLAIN_DEPTH', units='m',  &
          avgflag='A', long_name='MOSART floodplain water depth', &
          ptr_rof=rtmCTL%inundhf, default='active')
+        !!!!!!!!!!! added by Tian Dec 2017 
+      call RtmHistAddfld (fname='FLOODPLAIN_FRACTION', units='none',  &
+         avgflag='A', long_name='MOSART floodplain water area fraction', &
+         ptr_rof=rtmCTL%inundff, default='active')
+		!!!!!!!!!!!!!!!!!!!!!!!!
     endif
 #endif
 

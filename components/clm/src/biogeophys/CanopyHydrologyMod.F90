@@ -116,7 +116,7 @@ contains
      use atm2lndType        , only: atm2lnd_type !added by Yuna 1/29/2018
      use domainMod          , only : ldomain !added by Yuna 1/29/2018
      use clm_time_manager   , only : get_step_size
-     use subgridAveMod      , only : p2c
+     use subgridAveMod      , only : p2c, p2g !Tian Apr 2018
      !
      ! !ARGUMENTS:
      type(bounds_type)      , intent(in)    :: bounds     
@@ -151,7 +151,8 @@ contains
      real(r8) :: qflx_through_rain(bounds%begp:bounds%endp)   ! direct rain throughfall [mm/s]
      real(r8) :: qflx_through_snow(bounds%begp:bounds%endp)   ! direct snow throughfall [mm/s]
      real(r8) :: qflx_prec_grnd_snow(bounds%begp:bounds%endp) ! snow precipitation incident on ground [mm/s]
-     real(r8) :: qflx_prec_grnd_rain(bounds%begp:bounds%endp) ! rain precipitation incident on ground [mm/s]
+     real(r8) :: qflx_prec_grnd_rain(bounds%begp:bounds%endp) ! rain precipitation incident on ground [mm/s]     
+     real(r8) :: qflx_irrig_grid(bounds%begg:bounds%endg)      ! irrigation at grid level [mm/s] Tian Apr 2018     
      real(r8) :: z_avg                                        ! grid cell average snow depth
      real(r8) :: rho_avg                                      ! avg density of snow column
      real(r8) :: temp_snow_depth,temp_intsnow                 ! temporary variables
@@ -220,16 +221,21 @@ contains
           qflx_snow_grnd_patch => waterflux_vars%qflx_snow_grnd_patch      , & ! Output: [real(r8) (:)   ]  snow on ground after interception (mm H2O/s) [+]
           qflx_prec_intr       => waterflux_vars%qflx_prec_intr_patch      , & ! Output: [real(r8) (:)   ]  interception of precipitation [mm/s]    
           qflx_prec_grnd       => waterflux_vars%qflx_prec_grnd_patch      , & ! Output: [real(r8) (:)   ]  water onto ground including canopy runoff [kg/(m2 s)]
-          qflx_rain_grnd       => waterflux_vars%qflx_rain_grnd_patch      , & ! Output: [real(r8) (:)   ]  rain on ground after interception (mm H2O/s) [+]
-    
-          qflx_irrig           => waterflux_vars%qflx_irrig_patch          , & ! Output: [real(r8) (:)   ]  irrigation amount (mm/s)      !commented by Tian 2/27/2018
-          qflx_real_irrig      => waterflux_vars%qflx_real_irrig_patch     , & ! Output: [real(r8) (:)   ]  actual irrigation amount (mm/s)      !added by Tian 2/27/2018   
-		  qflx_supply          => waterflux_vars%qflx_supply_patch           & ! Output: [real(r8) (:)   ]  irrigation supply (mm/s)      !added by Tian 4/11/2018 
+          qflx_rain_grnd       => waterflux_vars%qflx_rain_grnd_patch      , & ! Output: [real(r8) (:)   ]  rain on ground after interception (mm H2O/s) [+]   
+          qflx_irrig           => waterflux_vars%qflx_irrig_patch          , & ! Output: [real(r8) (:)   ]  total irrigation amount (surface + groundwater) (mm/s)      !commented by Tian 2/27/2018
+          qflx_real_irrig      => waterflux_vars%qflx_real_irrig_patch     , & ! Output: [real(r8) (:)   ]  actual irrigation amount (surface + groundwater) (mm/s)      !added by Tian 2/27/2018   
+		  qflx_supply          => waterflux_vars%qflx_supply_patch           & ! Output: [real(r8) (:)   ]  surface water irrigation supply from MOSART-WM (mm/s)      !added by Tian 4/11/2018 
           )
 
        ! Compute time step
        
        dtime = get_step_size()
+       ! Find gridcell level irrigation rate !!!!!! Tian Apr. 2018
+       call p2g(bounds, &
+         qflx_irrig (bounds%begp:bounds%endp), &
+         qflx_irrig_grid (bounds%begg:bounds%endg), &
+         p2c_scale_type='unity', c2l_scale_type= 'urbanf', l2g_scale_type='unity')
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
        ! Start pft loop
 
@@ -337,17 +343,37 @@ contains
           ! Add irrigation water directly onto ground (bypassing canopy interception)
           ! Note that it's still possible that (some of) this irrigation water will runoff (as runoff is computed later)
           
-          if (TwoWayCouplingFlag) then ! Tian Apr. 2018 true is 2 way, else one way       
-             qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) 
-             qflx_real_irrig(p) = min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
-			 qflx_supply(p) = atm2lnd_vars%supply_grc(g) !added by Tian Apr 2018
-			
+          if (TwoWayCouplingFlag) then ! Tian Apr. 2018 true is 2 way, else one way
+             if (qflx_irrig_grid(g) > 0._r8) then                            
+			   qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)*qflx_irrig(p)/qflx_irrig_grid(g)) + ldomain%f_grd(g)*qflx_irrig(p) 
+               qflx_real_irrig(p) = min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)*qflx_irrig(p)/qflx_irrig_grid(g)) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+			   qflx_supply(p) = atm2lnd_vars%supply_grc(g)*qflx_irrig(p)/qflx_irrig_grid(g) !added by Tian Apr 2018	
+             else
+               qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + ldomain%f_grd(g)*qflx_irrig(p) 
+               qflx_real_irrig(p) = ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+			   qflx_supply(p) = 0._r8 !added by Tian Apr 2018
+             end if		
+
+
           else
              qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) 
              qflx_real_irrig(p) = ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
 			 qflx_supply(p) = 0._r8 !added by Tian Apr 2018
           end if
-   
+          
+          !!!!!!!!!!!!!!!!!!!!! old scheme, using supply at grid level instead of pft level
+          !if (TwoWayCouplingFlag) then ! Tian Apr. 2018 true is 2 way, else one way       
+          !   qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) 
+          !   qflx_real_irrig(p) = min(ldomain%f_surf(g)*qflx_irrig(p),atm2lnd_vars%supply_grc(g)) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+		  !   qflx_supply(p) = atm2lnd_vars%supply_grc(g) !added by Tian Apr 2018
+          !
+          !      else
+    !         qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) 
+    !         qflx_real_irrig(p) = ldomain%f_surf(g)*qflx_irrig(p) + ldomain%f_grd(g)*qflx_irrig(p) ! added by Tian 2/27/2018
+    !         qflx_supply(p) = 0._r8 !added by Tian Apr 2018
+    !      end if
+          !!!!!!!!!!!!!!!!!!!!!
+
           !no coupling
           !qflx_prec_grnd_rain(p) = qflx_prec_grnd_rain(p) + qflx_irrig(p)
 
